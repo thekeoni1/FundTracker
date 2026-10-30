@@ -350,20 +350,10 @@ def _display_name(counts, earliest_fund_name):
     return family_display_name(earliest_fund_name)
 
 
-# Launches: a manager's pooled funds first filed within LAUNCH_WINDOW_DAYS.
+# Launches: pooled funds first filed within LAUNCH_WINDOW_DAYS of each other
+# that share a manager, a signer, an over-cap entity or a fund family stem.
 
 LAUNCH_WINDOW_DAYS = 30
-
-
-def _windows(funds):
-    """Split funds, sorted by first filing date, into launch windows."""
-    out = []
-    for fund in funds:
-        if out and _days(out[-1][0]["first_filing_date"], fund["first_filing_date"]) <= LAUNCH_WINDOW_DAYS:
-            out[-1].append(fund)
-        else:
-            out.append([fund])
-    return out
 
 
 def _days(start, end):
@@ -372,16 +362,33 @@ def _days(start, end):
     return (date.fromisoformat(end) - date.fromisoformat(start)).days
 
 
+def _fold_keys(conn):
+    """cik -> set of fold keys from link_key: ("signer", key) for every signer, and
+    ("entity", key) for every over-cap entity key, which names a large manager or
+    platform (AQR's series funds share no other entity)."""
+    keys = defaultdict(set)
+    for r in conn.execute(
+            """
+            SELECT cik, kind, key FROM link_key
+            WHERE (kind = 'signer' AND over_cap = 0)
+               OR (kind IN ('entity_stem', 'entity_tokens') AND over_cap = 1)
+            """):
+        keys[r["cik"]].add(("signer" if r["kind"] == "signer" else "entity", r["key"]))
+    return keys
+
+
 def build_launches(conn, score=None):
-    """Fill launch from fund and fund_manager; return the number of launches.
+    """Fill launch from fund, fund_manager and link_key; return the number of launches.
 
     Every fund whose latest industry group is Pooled Investment Fund belongs
-    to exactly one launch. A manager's funds are walked in first-filing
-    order, and a fund more than LAUNCH_WINDOW_DAYS after the current
-    window's start opens a new launch. Funds of single-fund managers are
-    grouped the same way by fund family stem, which folds master, feeder and
-    offshore vehicles that name no common related person. score(launch,
-    funds) returns (score, reasons) and is applied when given.
+    to exactly one launch. Funds are walked in (first filing date, first
+    accession) order. A fund joins the earliest open launch that started at
+    most LAUNCH_WINDOW_DAYS before it and holds a fund sharing one of its
+    fold keys: the same manager (when the manager has more than one fund),
+    a signer, an over-cap entity key, or the same fund family stem.
+    Otherwise it starts a new launch. The fixed walk order keeps launch_id
+    stable. score(launch, funds) returns (score, reasons) and is applied when
+    given.
     """
     conn.execute("DELETE FROM launch")
     first_d = {}  # cik -> (filing date, accession) of its earliest D filing
@@ -393,40 +400,56 @@ def build_launches(conn, score=None):
         SELECT f.*, fm.manager_id, m.n_funds
         FROM fund f JOIN fund_manager fm USING (cik) JOIN manager m USING (manager_id)
         WHERE f.industry_group = 'Pooled Investment Fund'
-        ORDER BY f.first_filing_date, f.cik
+        ORDER BY f.first_filing_date, f.first_accession
         """)]
-    groups = defaultdict(list)
+    shared = _fold_keys(conn)
+
+    windows = []  # each a list of funds, in the order they joined
+    latest = {}   # fold key -> index of the latest window holding a fund with it
     for fund in funds:
-        if fund["n_funds"] == 1:
-            groups[("family", fund["family_stem"] or fund["cik"])].append(fund)
+        keys = set(shared.get(fund["cik"], ()))
+        if fund["n_funds"] > 1:
+            keys.add(("manager", fund["manager_id"]))
+        if _usable(fund["family_stem"]):
+            keys.add(("family", fund["family_stem"]))
+        # Windows are opened in date order, so a key's latest window is its
+        # only one that can still be within LAUNCH_WINDOW_DAYS.
+        open_ = [latest[k] for k in keys if k in latest
+                 and _days(windows[latest[k]][0]["first_filing_date"],
+                           fund["first_filing_date"]) <= LAUNCH_WINDOW_DAYS]
+        if open_:
+            index = min(open_)
+            windows[index].append(fund)
         else:
-            groups[("manager", fund["manager_id"])].append(fund)
+            index = len(windows)
+            windows.append([fund])
+        for k in keys:
+            latest[k] = max(index, latest.get(k, -1))
 
     rows = []
-    for _group, members in sorted(groups.items()):
-        for window in _windows(members):
-            # launch_id is the earliest D filing of any fund in the window; a
-            # fund with no D in the database falls back to its first filing.
-            anchors = [(first_d.get(f["cik"]) or (f["first_filing_date"] or "", f["first_accession"]), f)
-                       for f in window]
-            (_day, launch_id), anchor = min(anchors, key=lambda a: a[0])
-            types = {f["fund_type"] for f in window}
-            launch = {
-                "launch_id": launch_id,
-                "manager_id": anchor["manager_id"],
-                "display_name": anchor["name"],
-                "anchor_cik": anchor["cik"],
-                "fund_type": "Hedge Fund" if "Hedge Fund" in types else anchor["fund_type"],
-                "window_start": window[0]["first_filing_date"],
-                "window_end": window[-1]["first_filing_date"],
-                "fund_ciks": json.dumps([f["cik"] for f in window]),
-                "newness_score": None,
-                "newness_reasons": "[]",
-            }
-            if score is not None:
-                points, reasons = score(launch, window)
-                launch["newness_score"], launch["newness_reasons"] = points, json.dumps(reasons)
-            rows.append(launch)
+    for window in windows:
+        # launch_id is the earliest D filing of any fund in the window; a
+        # fund with no D in the database falls back to its first filing.
+        anchors = [(first_d.get(f["cik"]) or (f["first_filing_date"] or "", f["first_accession"]), f)
+                   for f in window]
+        (_day, launch_id), anchor = min(anchors, key=lambda a: a[0])
+        types = {f["fund_type"] for f in window}
+        launch = {
+            "launch_id": launch_id,
+            "manager_id": anchor["manager_id"],
+            "display_name": anchor["name"],
+            "anchor_cik": anchor["cik"],
+            "fund_type": "Hedge Fund" if "Hedge Fund" in types else anchor["fund_type"],
+            "window_start": window[0]["first_filing_date"],
+            "window_end": max(f["first_filing_date"] for f in window),
+            "fund_ciks": json.dumps([f["cik"] for f in window]),
+            "newness_score": None,
+            "newness_reasons": "[]",
+        }
+        if score is not None:
+            points, reasons = score(launch, window)
+            launch["newness_score"], launch["newness_reasons"] = points, json.dumps(reasons)
+        rows.append(launch)
     if rows:
         columns = list(rows[0])
         conn.executemany(

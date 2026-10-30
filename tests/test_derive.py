@@ -408,3 +408,77 @@ def test_manager_display_name_repairs_reversed_entity_names(empty):
                               "AND kind = 'entity_stem'").fetchall()) == {
         "MANAGEMENT AQR CAPITAL": "AQR Capital Management GP Ltd."}
     assert repo.get_manager(empty, "m0001635511")["display_name"] == "AQR Capital Management GP Ltd."
+
+
+# Launch folding across managers (Session 5): shared signer, over-cap entity, family stem.
+
+SERIES = ("Alpha", "Bravo", "Cobalt", "Delta", "Ember", "Falcon", "Granite", "Harbor", "Indigo")
+
+
+def series_funds(base, signer=True, entity=True, day="2026-10-20"):
+    """Nine funds filed the same day with unrelated names, each its own manager, sharing
+    the base signer and an entity related person when asked."""
+    sig = base.signatures[0]
+    person = dataclasses.replace(base.related_persons[0], first="Management, LLC", middle=None,
+                                 last="Bigco Capital", name_norm="MANAGEMENT LLC BIGCO CAPITAL",
+                                 is_entity=True)
+    out = []
+    for n, word in enumerate(SERIES, start=1):
+        f = lone(base, n, f"Bigco {word} {n} Portfolio LP", day)
+        out.append(dataclasses.replace(
+            f, signatures=(dataclasses.replace(sig, accession=f.accession),) if signer else f.signatures,
+            related_persons=(dataclasses.replace(person, accession=f.accession),) if entity else ()))
+    return out
+
+
+@pytest.fixture
+def small_entity_cap(monkeypatch):
+    for kind in ("entity_stem", "entity_tokens"):
+        monkeypatch.setitem(derive.KEY_CAPS, kind, 5)
+
+
+@pytest.mark.parametrize("signer, entity", [(True, True), (False, True), (True, False)])
+def test_nine_series_funds_fold_into_one_launch(empty, small_entity_cap, signer, entity):
+    for f in series_funds(fixture("0002158817-26-000001"), signer, entity):
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    assert empty.execute("SELECT count(*) FROM manager").fetchone()[0] == 9  # over the cap: no cluster
+    [launch] = launches(empty)
+    assert json.loads(launch["fund_ciks"]) == [f"{7000000000 + n:010d}" for n in range(1, 10)]
+    assert launch["launch_id"] == "7000000001-26-000001"
+
+
+def test_two_same_day_funds_sharing_only_a_signer_fold(empty):
+    base = fixture("0002158817-26-000001")
+    sig = base.signatures[0]
+    for n, name in ((1, "Regal Partners Global Fund LP"), (2, "Regal Total Return Strategies LP")):
+        f = lone(base, n, name, "2026-10-14")
+        repo.upsert_filing(empty, dataclasses.replace(
+            f, signatures=(dataclasses.replace(sig, accession=f.accession),)))
+    derive.run(empty)
+    assert [json.loads(r["fund_ciks"]) for r in launches(empty)] == [["7000000001", "7000000002"]]
+
+
+def test_a_shared_signer_31_days_after_the_window_start_starts_a_new_launch(empty):
+    base = fixture("0002158817-26-000001")
+    sig = base.signatures[0]
+    for n, day in ((1, "2026-09-01"), (2, "2026-10-01"), (3, "2026-10-02")):
+        f = lone(base, n, f"Unrelated {SERIES[n]} Fund LP", day)
+        repo.upsert_filing(empty, dataclasses.replace(
+            f, signatures=(dataclasses.replace(sig, accession=f.accession),)))
+    derive.run(empty)
+    # 2026-10-01 is 30 days after 2026-09-01 and joins; 2026-10-02 is 31 and does not.
+    assert [json.loads(r["fund_ciks"]) for r in launches(empty)] == [
+        ["7000000001", "7000000002"], ["7000000003"]]
+
+
+def test_launch_ids_are_stable_across_runs(empty, small_entity_cap):
+    base = fixture("0002158817-26-000001")
+    for f in series_funds(base) + [lone(base, 20, "Zephyr Master Fund LP", "2026-10-21"),
+                                   lone(base, 21, "Zephyr Offshore Fund Ltd", "2026-10-22")]:
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    first = launches(empty)
+    derive.run(empty)
+    assert launches(empty) == first
+    assert [r["launch_id"] for r in first] == ["7000000001-26-000001", "7000000020-26-000001"]
