@@ -12,7 +12,7 @@ next run fetches only the rest.
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fundtracker import config
 from fundtracker.db import repo
@@ -154,3 +154,51 @@ def daily(conn, client, day):
     log.info("%s: %d listed, %d already stored, %d loaded, %d failed", key, result.listed,
              result.already_present, result.loaded, len(result.errors))
     return result
+
+
+DONE_STATUSES = ("ok", "no_index")
+
+
+def catchup_start(conn, today=None):
+    """The first day catchup considers.
+
+    The day after the last filing date loaded from the data sets; failing
+    that, the earliest day the daily path has logged; failing that (empty
+    database), 30 days before today.
+    """
+    today = today or date.today()
+    last_dataset = conn.execute(
+        "SELECT max(filing_date) FROM filing WHERE source = 'dataset'").fetchone()[0]
+    if last_dataset:
+        return date.fromisoformat(last_dataset) + timedelta(days=1)
+    first_daily = conn.execute(
+        "SELECT min(key) FROM ingest_log WHERE source = ?", (DAILY_SOURCE,)).fetchone()[0]
+    if first_daily:
+        return date.fromisoformat(first_daily)
+    return today - timedelta(days=30)
+
+
+def catchup(conn, client, until=None, today=None):
+    """Run daily for every weekday from catchup_start to until (default yesterday).
+
+    Days already logged ok or no_index are skipped without a request, so a
+    normal run fetches only new days, a deleted or failed day in the middle
+    is fetched again, and holidays are recorded as no_index like weekends
+    would be. Today's index is never fetched unless until says so, because
+    it is incomplete before the nightly build. Returns the DailyResults of
+    the days fetched.
+    """
+    today = today or date.today()
+    if isinstance(until, str):
+        until = date.fromisoformat(until)
+    until = until or today - timedelta(days=1)
+    done = {r[0] for r in conn.execute(
+        f"SELECT key FROM ingest_log WHERE source = ? AND status IN ({', '.join('?' * len(DONE_STATUSES))})",
+        (DAILY_SOURCE, *DONE_STATUSES))}
+    results = []
+    day = catchup_start(conn, today)
+    while day <= until:
+        if day.weekday() < 5 and day.isoformat() not in done:
+            results.append(daily(conn, client, day))
+        day += timedelta(days=1)
+    return results
