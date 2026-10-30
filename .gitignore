@@ -1,0 +1,17 @@
+# Local data: database, cached EDGAR responses, data set zips
+data/
+
+# Secrets: the SEC User-Agent lives here
+.env
+
+# Virtual environments
+venv/
+
+# Python bytecode and build output
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+
+# Pytest cache
+.pytest_cache/
