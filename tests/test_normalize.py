@@ -62,6 +62,7 @@ def test_none_to_null(text, expected):
     (("Mary-Kate", None, "O'Brien"), "MARY KATE OBRIEN"),
     ((None, None, None), None),
     (("-", None, ""), None),
+    (("--", None, "Wellington Management Company LLP"), "WELLINGTON MANAGEMENT COMPANY LLP"),
 ])
 def test_join_name(parts, expected):
     assert n.join_name(*parts) == expected
@@ -78,7 +79,7 @@ def test_is_entity_by_token(last, expected):
     assert n.is_entity("Jo", last, joined) is expected
 
 
-@pytest.mark.parametrize("first", ["-", "", "N/A", "n/a", None])
+@pytest.mark.parametrize("first", ["-", "--", "", "N/A", "n/a", None])
 def test_is_entity_by_placeholder_first_name(first):
     assert n.is_entity(first, "Whoever", n.join_name(first, None, "Whoever"))
 
@@ -131,3 +132,15 @@ def test_fund_family_stem(name, expected):
 ])
 def test_address_key(street, zip_code, expected):
     assert n.address_key(street, zip_code) == expected
+
+
+@pytest.mark.parametrize("street1, street2, expected", [
+    ("280 Congress Street", "280 Congress Street", None),
+    ("280 Congress Street", " 280 Congress Street ", None),
+    ("c/o AQR Capital Management, LLC", "Two Greenwich Plaza", "Two Greenwich Plaza"),
+    ("280 Congress Street", "", None),
+    (None, "Suite 5", "Suite 5"),
+    ("x", None, None),
+])
+def test_street2(street1, street2, expected):
+    assert n.street2(street1, street2) == expected

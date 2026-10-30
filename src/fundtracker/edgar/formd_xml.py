@@ -109,7 +109,7 @@ def _address(el, prefix):
     a = el.find(prefix)
     return {
         "street1": _text(a, "street1"),
-        "street2": _text(a, "street2"),
+        "street2": n.street2(_text(a, "street1"), _text(a, "street2")),
         "city": _text(a, "city"),
         "state_or_country": _text(a, "stateOrCountry"),
         "state_or_country_desc": _text(a, "stateOrCountryDescription"),

@@ -305,7 +305,7 @@ def _read_tsv(zf, name):
     columns = COLUMNS[name]
     with _open_member(zf, name) as fh:
         reader = csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE)
-        return [_convert(raw, columns) for raw in reader]
+        return [_clean_address(_convert(raw, columns)) for raw in reader]
 
 
 def _split(text):
@@ -349,6 +349,12 @@ def _convert(raw, columns):
         else:
             raise ValueError(f"unknown column kind {kind!r} for {column}")
     return out
+
+
+def _clean_address(row):
+    if "street2" in row:
+        row["street2"] = n.street2(row.get("street1"), row["street2"])
+    return row
 
 
 def _seq_key(row):

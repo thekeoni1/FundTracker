@@ -41,7 +41,22 @@ def none_to_null(text):
 
 
 def _is_placeholder(part):
-    return part is None or part.strip().upper() in ENTITY_FIRST_NAMES
+    """None, "N/A" in any case, or text with no letters or digits ("-", "--")."""
+    return part is None or part.strip().upper() in ENTITY_FIRST_NAMES or not norm_text(part)
+
+
+def street2(street1, text):
+    """street2, or None when it is empty or only repeats street1.
+
+    The data sets often copy street1 into an empty street2 (5 of 6 cases
+    checked against the XML in 2026 Q3); the sixth filer typed the line
+    twice. Either way the repeat carries nothing, and dropping it makes the
+    XML and the data set agree.
+    """
+    text = none_to_null(text)
+    if text is not None and text == none_to_null(street1):
+        return None
+    return text
 
 
 def norm_text(text):
