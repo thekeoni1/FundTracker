@@ -200,7 +200,8 @@ def write_emerging_workbook(path, managers, funds, meta):
         (None, None),
         ("Entity key cap, CIKs", derive.ENTITY_KEY_CAP),
         ("People kept per manager", derive.MAX_PEOPLE),
-        ("Raised tiers", f"{traction.RAISED_10M:,} and {traction.RAISED_50M:,}"),
+        ("Raised bands", "; ".join(
+            f"{traction._band_text(low, high)}: {points:+d}" for low, high, points in traction.RAISED_BANDS)),
         ("Investors for the higher tier", traction.MANY_INVESTORS),
         ("Recent activity, months", traction.RECENT_MONTHS),
         ("Funds that count as large", traction.LARGE_FUNDS),

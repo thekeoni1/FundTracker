@@ -218,7 +218,8 @@ CREATE TABLE IF NOT EXISTS manager (
     state               TEXT,
     country             TEXT,
     people              TEXT,            -- JSON list of individual related persons, see derive
-    edgar_cik           TEXT             -- the earliest fund's CIK
+    edgar_cik           TEXT,            -- the earliest fund's CIK
+    prior_firms         TEXT             -- JSON list of large managers its people filed for earlier
 );
 
 CREATE TABLE IF NOT EXISTS fund_manager (

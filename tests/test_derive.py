@@ -561,3 +561,58 @@ def test_foreign_issuer_gets_a_country_and_no_state():
     assert derive._place("McLean", "VA", "VIRGINIA") == ("McLean", "VA", "United States")
     assert derive._place("Austin", "TX", "TEXAS") == ("Austin", "TX", "United States")
     assert derive._place(None, None, None) == (None, None, None)
+
+
+# prior_firms (Session 7)
+
+
+def signed_by(f, signer):
+    from fundtracker.normalize import norm_text
+    sig = dataclasses.replace(f.signatures[0], accession=f.accession, signer=signer,
+                              signer_norm=norm_text(signer))
+    return dataclasses.replace(f, signatures=(sig,))
+
+
+def firm(base, start, n_funds, entity_name, signer, day="2024-03-01", person_=None):
+    """n_funds funds sharing one entity related person (one manager), all signed by signer."""
+    gp = person(base, 1, "N/A", entity_name, entity=True)
+    out = []
+    for n in range(start, start + n_funds):
+        f = lone(base, n, f"{entity_name} Vehicle {n} LP", day)
+        people = (gp,) + ((person_,) if person_ else ())
+        f = dataclasses.replace(f, related_persons=tuple(
+            dataclasses.replace(p, accession=f.accession, seq=i) for i, p in enumerate(people, start=1)))
+        out.append(signed_by(f, signer))
+    return out
+
+
+def test_prior_firm_names_a_large_manager_the_signer_or_a_person_filed_for(empty):
+    base = fixture("0002158817-26-000001")
+    analyst = person(base, 2, "Priya", "Raman", ("Executive Officer",))
+    filings = firm(base, 100, 12, "Bigfirm Capital Management LLC", "Jane Doe", person_=analyst)
+    filings += firm(base, 200, 3, "Smallshop Partners LLC", "Bob Roe")
+    # Three new shops in 2025: one signed by Jane, one naming Priya, one signed by Bob.
+    filings.append(signed_by(lone(base, 1, "Jane Spinout Fund LP", "2025-06-02"), "Jane Doe"))
+    priya = lone(base, 2, "Raman Fund LP", "2025-06-02")
+    filings.append(dataclasses.replace(priya, related_persons=(
+        dataclasses.replace(analyst, accession=priya.accession, seq=1),)))
+    filings.append(signed_by(lone(base, 3, "Bob Spinout Fund LP", "2025-06-02"), "Bob Roe"))
+    for f in filings:
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    assert manager_row(empty, "7000000100")["n_funds"] == 12
+    assert json.loads(manager_row(empty, "7000000001")["prior_firms"]) == ["Bigfirm Capital Management LLC"]
+    assert json.loads(manager_row(empty, "7000000002")["prior_firms"]) == ["Bigfirm Capital Management LLC"]
+    assert manager_row(empty, "7000000003")["prior_firms"] is None  # a 3-fund firm is not large
+    # The large firm is not its own prior firm.
+    assert manager_row(empty, "7000000100")["prior_firms"] is None
+
+
+def test_prior_firm_needs_the_earlier_filing_to_predate_the_manager(empty):
+    base = fixture("0002158817-26-000001")
+    filings = firm(base, 100, 12, "Bigfirm Capital Management LLC", "Jane Doe", day="2026-01-05")
+    filings.append(signed_by(lone(base, 1, "Jane Earlier Fund LP", "2025-06-02"), "Jane Doe"))
+    for f in filings:
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    assert manager_row(empty, "7000000001")["prior_firms"] is None

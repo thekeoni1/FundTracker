@@ -64,6 +64,7 @@ ADDED_COLUMNS = (
     ("manager", "country", "TEXT"),
     ("manager", "people", "TEXT"),
     ("manager", "edgar_cik", "TEXT"),
+    ("manager", "prior_firms", "TEXT"),
 )
 
 

@@ -422,6 +422,72 @@ def build_manager_stats(conn):
         WHERE manager_id = ?
         """, rows)
     conn.executemany("UPDATE manager SET people = ? WHERE manager_id = ?", _people(conn))
+    conn.executemany("UPDATE manager SET prior_firms = ? WHERE manager_id = ?", _prior_firms(conn))
+
+
+# A manager with this many funds is a large firm for the prior_firm label.
+PRIOR_FIRM_FUNDS = 10
+# The most prior firms named per manager, largest first.
+MAX_PRIOR_FIRMS = 3
+
+
+def _prior_firms(conn):
+    """Yield (prior firms JSON, manager_id) for managers whose signer, or an individual on a
+    member fund's latest filing, appears on an earlier filing of a different manager with
+    PRIOR_FIRM_FUNDS or more funds: up to MAX_PRIOR_FIRMS display names, largest first.
+
+    Names are compared as name_norm and signer_norm. SQLite matches them through two
+    temporary tables, so Python only holds the result.
+    """
+    conn.execute("DROP TABLE IF EXISTS temp.big_names")
+    conn.execute("DROP TABLE IF EXISTS temp.manager_names")
+    conn.execute(
+        """
+        CREATE TEMP TABLE big_names AS
+        SELECT name, manager_id, min(day) AS day FROM (
+            SELECT lk.key AS name, fm.manager_id, lk.first_date AS day
+            FROM link_key lk JOIN fund_manager fm USING (cik) JOIN manager m USING (manager_id)
+            WHERE lk.kind = 'signer' AND m.n_funds >= :big
+            UNION ALL
+            SELECT rp.name_norm, fm.manager_id, f.filing_date
+            FROM manager m JOIN fund_manager fm USING (manager_id)
+            JOIN filing f ON f.cik = fm.cik JOIN related_person rp USING (accession)
+            WHERE m.n_funds >= :big AND rp.is_entity = 0 AND rp.name_norm IS NOT NULL
+        ) GROUP BY name, manager_id
+        """, {"big": PRIOR_FIRM_FUNDS})
+    conn.execute("CREATE INDEX temp.big_names_name ON big_names(name)")
+    conn.execute(
+        """
+        CREATE TEMP TABLE manager_names AS
+        SELECT DISTINCT fm.manager_id, lk.key AS name
+        FROM link_key lk JOIN fund_manager fm USING (cik) WHERE lk.kind = 'signer'
+        UNION
+        SELECT fm.manager_id, rp.name_norm
+        FROM fund_manager fm JOIN fund f USING (cik)
+        JOIN related_person rp ON rp.accession = f.latest_accession
+        WHERE rp.is_entity = 0 AND rp.name_norm IS NOT NULL
+        """)
+    current, firms = None, []
+    for r in conn.execute(
+            """
+            SELECT n.manager_id, b.manager_id AS firm, big.display_name, big.n_funds
+            FROM manager_names n JOIN manager m ON m.manager_id = n.manager_id
+            JOIN big_names b ON b.name = n.name
+            JOIN manager big ON big.manager_id = b.manager_id
+            WHERE b.manager_id != n.manager_id AND b.day < m.first_seen_date
+            GROUP BY n.manager_id, b.manager_id
+            ORDER BY n.manager_id, big.n_funds DESC, big.display_name
+            """):
+        if r["manager_id"] != current:
+            if firms:
+                yield json.dumps(firms), current
+            current, firms = r["manager_id"], []
+        if len(firms) < MAX_PRIOR_FIRMS:
+            firms.append(r["display_name"])
+    if firms:
+        yield json.dumps(firms), current
+    conn.execute("DROP TABLE temp.big_names")
+    conn.execute("DROP TABLE temp.manager_names")
 
 
 def _place(city, code, desc):

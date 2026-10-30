@@ -89,12 +89,12 @@ def test_emerging_prints_best_first_with_people_and_reasons(world, capsys):
     first, second = [i for i, line in enumerate(lines[1:-1], start=1) if line[:5].strip().isdigit()]
     heron = lines[first:second]
     # 18m raised, 12 investors, two vehicles; no amendment, nothing filed in six months.
-    assert heron[0].split()[:3] == ["65", "Heron", "Capital"]  # the name wraps in its column
+    assert heron[0].split()[:3] == ["70", "Heron", "Capital"]  # the name wraps in its column
     assert "Management LLC" in heron[1]
     assert ago(12) in heron[0] and "18,000,000" in heron[0] and "Houston, TX" in heron[0]
     notes = [line for line in heron if line.startswith(" " * 6) and line[6] != " "]
     assert notes[0] == "      Jane Q. Doe (Executive Officer)"
-    assert notes[1].startswith("      raised money (+25); raised 10m or more (+10); has investors (+10)")
+    assert notes[1].startswith("      raised money (+25); amount raised (+15); has investors (+10)")
     assert lines[second].split()[0] == "0" and "nothing raised yet (-20)" in " ".join(lines[second:-1])
     assert lines[-1].startswith("2 managers first seen ")
     assert lines[-1].endswith(", hedge fund candidates, fewer than 20 funds, no over-cap organisations")
@@ -150,13 +150,13 @@ def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
                       "People", "Reasons", "EDGAR", "Manager ID"]
     heron = dict(zip(header, [c.value for c in ws[2]]))
     assert (heron["Score"], heron["Manager"], heron["Funds"], heron["Raised"], heron["Investors"]) == (
-        65, "Heron Capital Management LLC", 2, 18_000_000, 12)
+        70, "Heron Capital Management LLC", 2, 18_000_000, 12)
     assert heron["First seen"].date().isoformat() == ago(12) and ws["C2"].number_format == "yyyy-mm-dd"
     assert ws["F2"].number_format == "#,##0" and heron["Amended"] == "no"
     assert (heron["City"], heron["State"], heron["Country"]) == ("Houston", "TX", "United States")
     assert heron["Types"] == "Hedge Fund" and heron["Exemptions"] == "06c, 3C, 3C.1"
     assert heron["People"] == "Jane Q. Doe (Executive Officer)"
-    assert heron["Reasons"].startswith("raised money (+25); raised 10m or more (+10)")
+    assert heron["Reasons"].startswith("raised money (+25); amount raised (+15)")
     assert ws["Q2"].hyperlink.target == ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
                                          "&CIK=7000000001&type=D&dateb=&owner=include&count=40")
     [scale] = list(ws.conditional_formatting)
