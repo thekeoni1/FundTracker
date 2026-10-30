@@ -28,6 +28,17 @@ LINK_KEY_STOPLIST = frozenset({
 # FUND, "SERIES I" and "LIMITED LIABILITY COMPANY" say nothing).
 GENERIC_STEM_TOKENS = frozenset(
     "FUND FUNDS SPV SPVS SERIES LLC LLP LIMITED LIABILITY COMPANY CO A B I II III IV V".split())
+# Entity stems naming a service provider rather than a manager: Cayman
+# corporate, custodial, fiduciary, trustee and director services firms and
+# fund administrators sit as related persons on many unrelated managers'
+# funds. In the first real run DEUTSCHE INTERNATIONAL CORPORATE SERVICES
+# LIMITED alone chained Brevan Howard, Marathon, Marshall Wace and others
+# into one manager. Matched with re.search against the stem.
+SERVICE_PROVIDER_STEM_PATTERNS = (
+    r"\b(CORPORATE|CUSTODIAL|FIDUCIARY|TRUSTEE|DIRECTOR|NOMINEE|SECRETARIAL)S? SERVICES?\b",
+    r"\bFUND (SERVICES|ADMINISTRATION|ADMINISTRATORS?)\b",
+)
+_SERVICE_PROVIDER = re.compile("|".join(SERVICE_PROVIDER_STEM_PATTERNS))
 # Keys shorter than this are skipped.
 MIN_KEY_LENGTH = 4
 # Phones must have at least this many digits.
@@ -102,7 +113,8 @@ def _usable(key):
 
 
 def _usable_stem(stem):
-    return _usable(stem) and not set(stem.split()) <= GENERIC_STEM_TOKENS
+    return (_usable(stem) and not set(stem.split()) <= GENERIC_STEM_TOKENS
+            and not _SERVICE_PROVIDER.search(stem))
 
 
 def entity_tokens(stem):

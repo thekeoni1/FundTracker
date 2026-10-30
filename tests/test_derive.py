@@ -370,3 +370,17 @@ def test_shared_signer_phone_or_address_do_not_link_managers(empty):
     derive.run(empty)
     assert manager_of(empty, "7000000001") == "m7000000001"
     assert manager_of(empty, "7000000002") == "m7000000002"
+
+
+@pytest.mark.parametrize("stem, usable", [
+    ("DEUTSCHE INTERNATIONAL CORPORATE SERVICES LIMITED", False),
+    ("MAPLES FIDUCIARY SERVICES DELAWARE", False),
+    ("MAPLES TRUSTEE SERVICES CAYMAN LIMITED", False),
+    ("MSW DIRECTOR SERVICES", False),
+    ("ASTERION FUND SERVICES", False),
+    ("ALLOCATIONS FUND ADMINISTRATION", False),
+    ("FINANCIAL SERVICES PARTNERS", True),
+    ("BREVAN HOWARD CAPITAL MANAGEMENT", True),
+])
+def test_service_provider_stems_are_skipped(stem, usable):
+    assert derive._usable_stem(stem) is usable
