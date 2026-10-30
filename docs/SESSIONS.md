@@ -139,3 +139,42 @@ Steps:
 Constraints: no network anywhere; `openpyxl` is the only new dependency and is used only in `export.py` and its tests; `derive` still touches only derived tables and `ingest_log`; keep every tunable (weights, caps, window, stoplists, patterns, reason labels) a module constant. Plain prose in docs and output, no em dashes. Commit footer: `Co-Authored-By:` the model running the session.
 
 Exit criteria: `pytest` green with no network; six commits in order; `derive` twice gives identical derived tables; in `new --since 30d --type hedge` Axiaris stays first, the AQR series funds are one launch scoring 10 or less, and no launch in the top 20 touches an over-cap entity key; the hedge and all-type workbooks for the last 7 days exist under `data/exports/` for the user to open; PROGRESS.md updated. The user reads the hedge workbook as the acceptance gate for WP4.
+
+
+## Session 6. Emerging managers view (WP4c)
+
+Do not start until the Session 5 entry is in PROGRESS.md (it is, 2026-10-30). Read PLAN.md (7.3, 7.4, the new 7.6, 8, 9 WP4c), PROGRESS.md (2026-10-30 decisions, questions 17, 19, 20), and `derive.py`, `newness.py`, `export.py`, `cli.py` as they stand. The user's purpose is finding small hedge funds to approach for a summer internship. Brand-new launches are one answer; the better targets are shops that filed their first Form D 6 to 18 months ago and have since shown traction: money raised, investors on board, an amendment or a second vehicle filed. This session adds that second ranking as `fundtracker emerging`, with its own workbook. The unit is the manager, not the launch, because the user wants a shop to work at and people to write to. No UI, no network, no change to ingestion.
+
+Settled decisions (already in the decisions log):
+
+- `emerging` ranks managers whose `first_seen_date` is between `--max-age` and `--min-age` before today (defaults 18 and 6 months), excluding managers that touch an over-cap entity key (platforms and large organisations) and managers with 20 or more funds. The traction score is a second weights dict, `TRACTION_WEIGHTS`, separate from newness.
+- Manager traction fields are derived columns on `manager`, rebuilt by `derive`, not computed at query time.
+- The people column lists individual related persons from the manager's funds' latest filings, so the user can address a founder by name. Names and roles come straight from the public filing; nothing else is added.
+
+Traction score, 0 to 100, clamped, with a reasons list like newness:
+
+| Signal | Points | Code |
+| --- | --- | --- |
+| Any fund's latest filing reports amount sold above 0 | 25 | `raised` |
+| Total amount sold across funds at least 10,000,000 | 10 | `raised_10m` |
+| Total amount sold at least 50,000,000 | 10 | `raised_50m` |
+| Total investors above 0 | 10 | `investors` |
+| Total investors at least 10 | 5 | `investors_10` |
+| At least one `D/A` amendment filed after the first notice | 15 | `amended` |
+| Two or more fund vehicles | 15 | `second_vehicle` |
+| Any filing in the last 6 months | 10 | `recent_activity` |
+| Hedge Fund type on the latest filing of any fund (in `--type all` mode only; in hedge mode it is the filter) | 0 | `hedge` |
+| Manager has 10 or more funds | -20 | `large` |
+| Every fund still reports zero sold and zero investors | -20 | `nothing_raised` |
+
+Steps:
+
+1. `manager` gains columns: `n_filings`, `latest_filing_date`, `total_sold` (sum over funds of the latest filing's `total_amount_sold_num`, nulls as 0), `total_investors` (same for `n_investors`), `has_amendment` (any fund with `n_filings` above 1 whose latest filing is `D/A`), `is_over_cap` (touches an over-cap entity key), `fund_types` (JSON list of distinct latest `fund_type`), `city`, `state`, `country` (from the primary issuer of the latest filing of the earliest fund), `people` (JSON list of up to 8 `{"name", "roles"}` for individual related persons on the latest filing of each fund, deduped by `name_norm`, in filing order), `edgar_cik` (the earliest fund's CIK, for a link). Build them in `derive.build_managers` or a new `build_manager_stats` run after it, in SQL where possible. Also sort the merged exemption list on a folded launch (the Regal row showed `3C, 3C.7, 06b`; sort with `06b`, `06c` first, then the `3C` codes). Tests on the fixture database: a manager with two funds sums sold and investors across both, `has_amendment` is set only when the latest filing is an amendment, `people` excludes entities and placeholders and dedupes a person on two funds, exemption order. Commit.
+2. `src/fundtracker/traction.py`: `score_manager(facts) -> (score, reasons)` with `TRACTION_WEIGHTS` and `TRACTION_LABELS` (readable phrases), facts being the manager columns above plus `today`. Tests: one case per table row, the two penalties, clamping, and a composed case: 11 months old, two vehicles, 18,000,000 sold, 12 investors, amended, active, scoring at least 85. Commit.
+3. `repo.emerging_managers(today, min_age_months, max_age_months, fund_types, exclude_over_cap=True, max_funds=20)` returning manager rows with their funds, and `cli` command `emerging [--min-age 6m] [--max-age 18m] [--type hedge|all] [--min-score N] [--xlsx [PATH]] [--csv PATH]`. Ages accept `Nm` months or `Nd` days. Hedge mode keeps managers with `Hedge Fund` in `fund_types` (plus the `other_fund_3c` candidate rule applied to any fund). Terminal table: Score, Manager, First seen, Age (months), Funds, Raised, Investors, Latest filing, City and State, then the people on an indented second line and reason phrases on a third. Sorted by score, then total sold, then first seen. Tests through `main(argv)`. Commit.
+4. Workbook. `export.write_emerging_workbook(path, managers, funds, meta)` with sheets `Managers` (Score, Manager, First seen, Age months, Funds, Raised, Investors, Amended, Latest filing, Types, Exemptions, City, State, Country, People, Reasons, EDGAR, Manager ID), `Funds` (every fund of the listed managers with all fund columns and the manager score), `People` (one row per person: Manager, Name, Roles, Fund, Filing date, EDGAR link to that filing), `Reasons`, `About` (window, filters, counts, `TRACTION_WEIGHTS`). Same formatting conventions as the launch workbook: real dates, `#,##0` amounts, hyperlinks, frozen header, autofilter, colour scale on Score. `--xlsx` with no value writes `data/exports/emerging-{type}-{min}-{max}-{YYYYMMDD}.xlsx`. Tests read the workbook back. Commit.
+5. Hand run: `derive` (record wall time and peak working set), then `emerging --type hedge` with defaults, `emerging --type hedge --max-age 36m`, and `emerging --type all`, each with `--xlsx`. Record in the Session 6 entry: manager counts in the window before and after the over-cap and size exclusions; the top 20 hedge managers by score with first seen, funds, raised, investors and city; how many of the top 20 have at least one named individual; the largest manager excluded by the 20-fund rule; anything odd in the people column (entities slipping through, placeholder names). Also note the OneDrive location of the database if it slowed the run. Append the entry and commit.
+
+Constraints: no network anywhere; `derive` still touches only derived tables and `ingest_log`; `review` untouched; every tunable (`TRACTION_WEIGHTS`, age defaults, the 20-fund exclusion, the 10-fund penalty) a module constant. Plain prose, no em dashes. Commit footer: `Co-Authored-By:` the model running the session.
+
+Exit criteria: `pytest` green with no network; five commits in order; `derive` twice gives identical derived tables; `emerging --type hedge` lists managers whose first filing is 6 to 18 months old, none touching an over-cap key, with Axiaris absent (too young) and AQR and Belltower absent (over cap); the hedge workbook for the default window exists under `data/exports/` for the user to read; PROGRESS.md updated. The user reading that workbook is the acceptance gate.

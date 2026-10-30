@@ -186,6 +186,10 @@ The weights live in one dict so they can be tuned without touching logic. The UI
 
 Idempotency rule: every writer upserts on the natural key and every step is recorded in `ingest_log`. Running anything twice yields the same database.
 
+### 7.6 Emerging managers (traction score, `traction.py`)
+
+A second ranking for a different question: not "what launched this week" but "which small shops launched 6 to 18 months ago and are working". The unit is the manager. Candidates are managers whose first filing falls in the age window, excluding over-cap organisations and managers with 20 or more funds. The traction score adds points for amount sold, investors, an amendment after the first notice, a second vehicle and recent filing activity, and subtracts for size or nothing raised; weights live in `TRACTION_WEIGHTS`. The manager row carries the individual related persons from the latest filings so the user can address a founder by name. Exposed as `fundtracker emerging` with its own workbook.
+
 ## 8. User interface
 
 ### CLI (phase 1 deliverable, useful on its own)
@@ -197,6 +201,7 @@ fundtracker ingest daily [--date 2026-10-28]
 fundtracker ingest catchup
 fundtracker derive
 fundtracker new [--since 7d] [--min-score 50] [--type hedge|all] [--xlsx [out.xlsx]] [--csv out.csv]   (default type: hedge)
+fundtracker emerging [--min-age 6m] [--max-age 18m] [--type hedge|all] [--xlsx [out.xlsx]]   managers by traction (7.6)
 fundtracker fund <cik>                timeline of filings, related persons, EDGAR links
 fundtracker manager <id>
 fundtracker search "<name>"           local search, with --edgar to hit full-text search
@@ -279,6 +284,16 @@ Deliver: readable entity display names (reversed encodings repaired); over-cap e
 Done when: Axiaris stays first over 30 days, AQR's series funds fold into one low-scoring launch, no top-20 launch touches an over-cap entity key, and the user accepts the hedge workbook for the last week.
 
 Brief: "Implement WP4b from docs/SESSIONS.md Session 5: the tuning round the user asked for after reviewing WP4 output, plus the Excel export."
+
+### WP4c: Emerging managers view
+
+Depends on: WP4b.
+
+Deliver: traction columns on `manager` built by `derive`; `traction.py` with `TRACTION_WEIGHTS`; `emerging` CLI command and workbook (Managers, Funds, People, Reasons, About).
+
+Done when: the default hedge window lists managers 6 to 18 months old with no over-cap organisations, and the user accepts the workbook.
+
+Brief: "Implement WP4c from docs/SESSIONS.md Session 6: the emerging managers ranking by traction, with people named from the filings, as a CLI command and workbook."
 
 ### WP5: Web UI
 
