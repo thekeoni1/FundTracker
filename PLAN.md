@@ -152,7 +152,9 @@ Everything is ingested regardless, so the user can widen or narrow the rule in t
 
 ### 7.3 Manager linking (`newness.py`)
 
-For each candidate `D` filing, collect linking keys: entity-type related-person stems, signer name (when the signer is not the fund itself), issuer phone, address key. Look each key up across all prior filings (any industry, any date before this filing date minus a 30-day window). Union the matches into a manager cluster; if none match, create a new manager.
+For each `D` filing, collect linking keys: entity-type related-person stems (as stem and as sorted token set), signer name (when the signer is not the fund itself), issuer phone, address key. Each key carries the number of distinct CIKs it appears on; keys above a per-kind cap (200 for entity keys, 50 for phone and address) are flagged as service-provider keys, because SPV platforms, administrators, registered agents and filing agents share them across thousands of unrelated vehicles.
+
+Manager clusters are the connected components over entity keys only, excluding flagged keys. Signer, phone and address keys never join clusters: measured on the real data (2026-10-30), transitive union over them puts 61% of all CIKs into one cluster whatever the cap. They are still used for the newness lookup: a launch is "brand new" when none of its unflagged keys of any kind appears on a filing dated before the launch window.
 
 Clustering within the same window: filings within 30 days of each other sharing any key or the same fund-family stem form one `launch`. This folds master/feeder/offshore trios into one inbox row.
 
