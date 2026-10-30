@@ -7,6 +7,7 @@
     derive                                   rebuild funds, managers and launches
     refresh                                  ingest catchup, then derive (what the site's
                                              Refresh button and the scheduled task run)
+    schedule install|show|remove             a weekday 06:30 refresh in Task Scheduler
     new [--since 7d] [--min-score N] [--type hedge|all] [--xlsx [PATH]] [--csv PATH]
                                              launches since a date, best score first
     emerging [--min-age 6m] [--max-age 18m] [--type hedge|all] [--min-score N]
@@ -68,6 +69,10 @@ def main(argv=None):
 
     p = sub.add_parser("refresh", help="ingest catchup, then derive: the site's Refresh job")
     p.set_defaults(func=cmd_refresh)
+
+    p = sub.add_parser("schedule", help="add, show or remove a weekday 06:30 refresh task")
+    p.add_argument("action", choices=("install", "show", "remove"))
+    p.set_defaults(func=cmd_schedule)
 
     p = sub.add_parser("new", help="launches first filed since a date, best newness score first")
     p.add_argument("--since", default="7d", type=_since_arg, metavar="7d|30d|YYYY-MM-DD",
@@ -266,6 +271,12 @@ def cmd_refresh(conn, args):
         return 1
     print(f"refresh done in {time.monotonic() - started:.0f}s")
     return 0
+
+
+def cmd_schedule(conn, args):
+    from fundtracker import schedule
+
+    return schedule.run(args.action)
 
 
 def parse_since(text, today=None):
