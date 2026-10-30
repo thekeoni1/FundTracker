@@ -167,10 +167,11 @@ def _recipient(el, accession, seq):
     states_list = el.find("statesOfSolicitationList")
     states = ()
     if states_list is not None:
-        states = tuple(
+        # Sorted and unique, as the data sets store them; order carries no meaning.
+        states = tuple(sorted({
             v for v in (n.none_to_null(c.text) for c in states_list if c.tag in ("state", "value"))
             if v is not None
-        )
+        }))
     return Recipient(
         accession=accession,
         seq=seq,

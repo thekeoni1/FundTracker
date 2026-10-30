@@ -227,7 +227,8 @@ def test_co_issuers_and_two_signatures():
     assert (firstpoint.crd, firstpoint.bd_name, firstpoint.bd_crd) == (None, "BA Securities, LLC", "153489")
     assert (asante.city, asante.state_or_country, asante.zip) == ("London", "X0", "W1S 3AN")
     assert [r.foreign_solicitation for r in f.recipients] == [False, True, True]
-    assert len(asante.states) == 51 and asante.states[:3] == ("AL", "AK", "AZ")
+    # Filed as AL, AK, AZ, ...; stored sorted to match the data sets.
+    assert len(asante.states) == 51 and asante.states[:3] == ("AK", "AL", "AR")
     assert "ALABAMA" not in asante.states
 
 
@@ -241,7 +242,7 @@ def test_recipient_with_states_of_solicitation():
     assert (r.crd, r.bd_name, r.bd_crd) == ("144403", None, None)
     assert (r.city, r.state_or_country, r.zip) == ("New York", "NY", "10005")
     assert len(r.states) == 41
-    assert r.states[:4] == ("AL", "AZ", "AR", "CA") and r.states[-1] == "WY"
+    assert r.states[:4] == ("AL", "AR", "AZ", "CA") and r.states[-1] == "WY"
     assert r.foreign_solicitation is False
     o = f.offering
     assert o.total_amount_sold_num == 59409033

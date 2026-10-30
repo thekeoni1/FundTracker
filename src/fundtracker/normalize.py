@@ -129,13 +129,14 @@ def parse_int(text):
 
 
 def parse_date(text):
-    """ISO date string from ISO (2026-05-01), DD-MON-YYYY (30-SEP-2026) or YYYYMMDD; else None."""
+    """ISO date string from ISO (2026-05-01, optionally with a time), DD-MON-YYYY (30-SEP-2026)
+    or YYYYMMDD; else None. A time, as in the older data sets' FILING_DATE, is dropped."""
     text = none_to_null(text)
     if text is None:
         return None
     try:
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
-            return date.fromisoformat(text).isoformat()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?", text):
+            return date.fromisoformat(text[:10]).isoformat()
         if re.fullmatch(r"\d{8}", text):
             return datetime.strptime(text, "%Y%m%d").date().isoformat()
         m = re.fullmatch(r"(\d{1,2})-([A-Za-z]{3})-(\d{4})", text)
