@@ -45,7 +45,7 @@ def test_parse_bool(text, expected):
 
 
 @pytest.mark.parametrize("text, expected", [
-    ("None", None), (" None ", None), ("", None), (None, None),
+    ("None", None), (" None ", None), ("none", None), ("NONE", None), ("", None), (None, None),
     ("155178", "155178"), (" Acme ", "Acme"), ("NONE OF THE ABOVE", "NONE OF THE ABOVE"),
 ])
 def test_none_to_null(text, expected):
@@ -57,6 +57,7 @@ def test_none_to_null(text, expected):
     (("Axiaris Capital Management", None, "LLC"), "AXIARIS CAPITAL MANAGEMENT LLC"),
     (("-", None, "VSC Ventures Fund I GP LLC"), "VSC VENTURES FUND I GP LLC"),
     (("N/A", "", "Acme Partners, L.P."), "ACME PARTNERS LP"),
+    (("n/a", None, "GEF US CSF III GP, LLC"), "GEF US CSF III GP LLC"),
     (("Mary-Kate", None, "O'Brien"), "MARY KATE OBRIEN"),
     ((None, None, None), None),
     (("-", None, ""), None),
@@ -76,7 +77,7 @@ def test_is_entity_by_token(last, expected):
     assert n.is_entity("Jo", last, joined) is expected
 
 
-@pytest.mark.parametrize("first", ["-", "", "N/A", None])
+@pytest.mark.parametrize("first", ["-", "", "N/A", "n/a", None])
 def test_is_entity_by_placeholder_first_name(first):
     assert n.is_entity(first, "Whoever", n.join_name(first, None, "Whoever"))
 

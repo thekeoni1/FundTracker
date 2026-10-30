@@ -13,7 +13,8 @@ from decimal import Decimal, InvalidOperation
 ENTITY_TOKENS = frozenset(
     "LLC LP LTD LIMITED INC CORP GP PARTNERS CAPITAL MANAGEMENT ADVISORS ADVISERS HOLDINGS".split()
 )
-# Placeholders filers put in firstName when the related person is an entity.
+# Placeholders filers put in firstName when the related person is an entity,
+# compared upper-cased (GEF files "n/a").
 ENTITY_FIRST_NAMES = frozenset({"", "-", "N/A"})
 # Removed anywhere in an entity name to get its stem.
 ENTITY_SUFFIX_TOKENS = frozenset("LLC LP LTD INC GP THE".split())
@@ -28,11 +29,19 @@ _MONTHS = {m: i for i, m in enumerate(
 
 
 def none_to_null(text):
-    """Strip text; return None for missing, empty, or EDGAR's literal "None"."""
+    """Strip text; return None for missing, empty, or the literal "None" in any case.
+
+    EDGAR writes "None" for absent CRD numbers and previous names, and some
+    filers type "none" as a recipient name.
+    """
     if text is None:
         return None
     text = text.strip()
-    return None if text in ("", "None") else text
+    return None if text == "" or text.lower() == "none" else text
+
+
+def _is_placeholder(part):
+    return part is None or part.strip().upper() in ENTITY_FIRST_NAMES
 
 
 def norm_text(text):
@@ -54,14 +63,14 @@ def join_name(first, middle, last):
     encodings (firstName="-" lastName="X GP LLC" and firstName="X GP"
     lastName="LLC") give "X GP LLC".
     """
-    parts = [p for p in (first, middle, last) if p and p.strip() not in ENTITY_FIRST_NAMES]
+    parts = [p for p in (first, middle, last) if not _is_placeholder(p)]
     joined = norm_text(" ".join(parts))
     return joined or None
 
 
 def is_entity(first, last, joined=None):
     """True when the related person is an entity, judged on the joined name."""
-    if first is None or first.strip() in ENTITY_FIRST_NAMES:
+    if _is_placeholder(first):
         return True
     tokens = norm_text(joined if joined is not None else join_name(first, None, last)).split()
     return any(t in ENTITY_TOKENS for t in tokens)
