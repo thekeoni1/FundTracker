@@ -196,8 +196,8 @@ CREATE TABLE IF NOT EXISTS link_key (
     key         TEXT NOT NULL,
     cik         TEXT NOT NULL,
     first_date  TEXT,            -- earliest filing of this CIK that carries the key
-    PRIMARY KEY (kind, key, cik)
-);
+    over_cap    INTEGER NOT NULL DEFAULT 0   -- held by more CIKs than derive.KEY_CAPS allows
+);                               -- one row per (kind, key, cik); derive writes each once
 
 CREATE TABLE IF NOT EXISTS manager (
     manager_id       TEXT PRIMARY KEY,   -- m plus the CIK of the member with the earliest first filing

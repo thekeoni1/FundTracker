@@ -10,8 +10,10 @@ import json
 import logging
 import re
 from collections import defaultdict
+from datetime import date, datetime, timezone
 
 from fundtracker import classify, normalize
+from fundtracker.db import repo
 from fundtracker.normalize import entity_stem, fund_family_stem, is_entity, norm_text
 
 log = logging.getLogger(__name__)
@@ -20,17 +22,27 @@ log = logging.getLogger(__name__)
 # entity stem or normalised signer name; extend from what the real data shows.
 LINK_KEY_STOPLIST = frozenset({
     "GENERAL PARTNER", "MANAGING MEMBER", "MANAGEMENT", "CAPITAL", "PARTNERS",
-    "ADVISORS", "N/A", "NA", "NONE", "SAME AS ISSUER",
+    "ADVISORS", "N/A", "NA", "NONE", "SAME AS ISSUER", "FUND", "SPV", "SERIES",
 })
+# An entity stem made only of these tokens is skipped too ("FUND LLC" leaves
+# FUND, "SERIES I" and "LIMITED LIABILITY COMPANY" say nothing).
+GENERIC_STEM_TOKENS = frozenset(
+    "FUND FUNDS SPV SPVS SERIES LLC LLP LIMITED LIABILITY COMPANY CO A B I II III IV V".split())
 # Keys shorter than this are skipped.
 MIN_KEY_LENGTH = 4
 # Phones must have at least this many digits.
 MIN_PHONE_DIGITS = 7
-# A phone or address shared by more CIKs than this belongs to a service
-# provider (registered agent, administrator, law firm) and is dropped.
-# Entity and signer keys are never capped.
+# Keys held by more distinct CIKs than their cap belong to a platform or
+# service provider: SPV platforms (BELLTOWER FUND GROUP, SYDECAR) as entity
+# related persons, registered agents, administrators and law firms as phone
+# and address. They stay in link_key with over_cap = 1, never link a manager
+# and never count as a sighting for newness. Signer keys are not capped.
+ENTITY_KEY_CAP = 200
 SERVICE_PROVIDER_CAP = 50
-CAPPED_KINDS = ("phone", "address")
+KEY_CAPS = {"entity_stem": ENTITY_KEY_CAP, "entity_tokens": ENTITY_KEY_CAP,
+            "phone": SERVICE_PROVIDER_CAP, "address": SERVICE_PROVIDER_CAP}
+# Only these kinds create edges between CIKs in a manager cluster.
+CLUSTER_KINDS = ("entity_stem", "entity_tokens")
 
 
 def build_funds(conn):
@@ -43,28 +55,28 @@ def build_funds(conn):
     conn.execute("DELETE FROM fund")
     rows = conn.execute(
         """
-        WITH ranked AS MATERIALIZED (
-            SELECT accession, cik, filing_date,
-                   row_number() OVER (PARTITION BY cik ORDER BY filing_date, accession) AS rn_first,
-                   row_number() OVER (PARTITION BY cik ORDER BY filing_date DESC, accession DESC) AS rn_last,
-                   count(*) OVER (PARTITION BY cik) AS n
-            FROM filing
+        WITH ends AS MATERIALIZED (
+            -- filing_date is ISO and accession fixed width, so the joined text sorts by both
+            SELECT cik, count(*) AS n,
+                   substr(min(filing_date || ' ' || accession), 12) AS first_accession,
+                   substr(max(filing_date || ' ' || accession), 12) AS latest_accession
+            FROM filing GROUP BY cik
         )
-        SELECT l.cik, l.n, f.accession AS first_accession, f.filing_date AS first_filing_date,
-               l.accession AS latest_accession, l.filing_date AS latest_filing_date,
+        SELECT e.cik, e.n, e.first_accession, f.filing_date AS first_filing_date,
+               e.latest_accession, l.filing_date AS latest_filing_date,
                i.entity_name, i.state_or_country, i.state_or_country_desc,
                o.industry_group, o.fund_type, o.exemptions,
                fo.sale_yet_to_occur, fo.total_amount_sold_num, fo.n_investors,
                fo.min_investment_num, fo.total_offering_amount_num,
                fo.total_offering_amount_is_indefinite,
                fi.year_of_inc_choice, fi.year_of_inc_value
-        FROM ranked l
-        JOIN ranked f ON f.cik = l.cik AND f.rn_first = 1
-        LEFT JOIN issuer i ON i.accession = l.accession AND i.is_primary = 1
-        LEFT JOIN offering o ON o.accession = l.accession
-        LEFT JOIN offering fo ON fo.accession = f.accession
-        LEFT JOIN issuer fi ON fi.accession = f.accession AND fi.is_primary = 1
-        WHERE l.rn_last = 1
+        FROM ends e
+        JOIN filing f ON f.accession = e.first_accession
+        JOIN filing l ON l.accession = e.latest_accession
+        LEFT JOIN issuer i ON i.accession = e.latest_accession AND i.is_primary = 1
+        LEFT JOIN offering o ON o.accession = e.latest_accession
+        LEFT JOIN offering fo ON fo.accession = e.first_accession
+        LEFT JOIN issuer fi ON fi.accession = e.first_accession AND fi.is_primary = 1
         """)
     out = []
     for r in rows:
@@ -89,6 +101,10 @@ def _usable(key):
     return bool(key) and len(key) >= MIN_KEY_LENGTH and key not in LINK_KEY_STOPLIST
 
 
+def _usable_stem(stem):
+    return _usable(stem) and not set(stem.split()) <= GENERIC_STEM_TOKENS
+
+
 def entity_tokens(stem):
     """The stem as a sorted token set, so "MANAGEMENT AQR CAPITAL" matches "AQR CAPITAL MANAGEMENT"."""
     return " ".join(sorted(set(stem.split())))
@@ -97,8 +113,9 @@ def entity_tokens(stem):
 def build_link_keys(conn):
     """Fill link_key with every usable key per CIK and its earliest filing date.
 
-    Returns a dict with the rows written and, per capped kind, how many
-    service-provider keys were dropped.
+    Keys held by more CIKs than their KEY_CAPS entry are kept with over_cap
+    set. Returns a dict with the rows written and, per capped kind, how many
+    distinct keys are over the cap.
     """
     conn.execute("DELETE FROM link_key")
     first = {}  # (kind, key, cik) -> earliest filing date
@@ -116,19 +133,22 @@ def build_link_keys(conn):
             GROUP BY f.cik, rp.name_norm
             """):
         stem = entity_stem(r["name_norm"])
-        if _usable(stem):
+        if _usable_stem(stem):
             add("entity_stem", stem, r["cik"], r["day"])
             add("entity_tokens", entity_tokens(stem), r["cik"], r["day"])
 
+    # Every name each CIK has filed under, to skip a fund signing as itself.
+    own_names = defaultdict(set)
+    for r in conn.execute("SELECT DISTINCT cik, entity_name FROM issuer WHERE is_primary = 1"):
+        own_names[r["cik"]].add(norm_text(r["entity_name"]))
     for r in conn.execute(
             """
-            SELECT f.cik, s.signer_norm, i.entity_name, min(f.filing_date) AS day
+            SELECT f.cik, s.signer_norm, min(f.filing_date) AS day
             FROM signature s JOIN filing f USING (accession)
-            LEFT JOIN issuer i ON i.accession = s.accession AND i.is_primary = 1
-            GROUP BY f.cik, s.signer_norm, i.entity_name
+            GROUP BY f.cik, s.signer_norm
             """):
         signer = r["signer_norm"]
-        if (not _usable(signer) or signer == norm_text(r["entity_name"])
+        if (not _usable(signer) or signer in own_names[r["cik"]]
                 or is_entity(signer, None, signer)):
             continue
         add("signer", signer, r["cik"], r["day"])
@@ -149,18 +169,18 @@ def build_link_keys(conn):
 
     ciks_per_key = defaultdict(int)
     for kind, key, _cik in first:
-        if kind in CAPPED_KINDS:
+        if kind in KEY_CAPS:
             ciks_per_key[(kind, key)] += 1
-    dropped_keys = {k for k, n in ciks_per_key.items() if n > SERVICE_PROVIDER_CAP}
-    dropped = {kind: sum(1 for k in dropped_keys if k[0] == kind) for kind in CAPPED_KINDS}
-    for kind, n in dropped.items():
-        log.info("dropped %d %s keys shared by more than %d CIKs", n, kind, SERVICE_PROVIDER_CAP)
+    over = {k for k, n in ciks_per_key.items() if n > KEY_CAPS[k[0]]}
+    over_cap = {kind: sum(1 for k in over if k[0] == kind) for kind in KEY_CAPS}
+    for kind, n in over_cap.items():
+        log.info("%d %s keys shared by more than %d CIKs flagged over_cap", n, kind, KEY_CAPS[kind])
 
-    rows = [(kind, key, cik, day) for (kind, key, cik), day in first.items()
-            if (kind, key) not in dropped_keys]
-    rows.sort()
-    conn.executemany("INSERT INTO link_key (kind, key, cik, first_date) VALUES (?, ?, ?, ?)", rows)
-    return {"rows": len(rows), "dropped": dropped}
+    rows = sorted((kind, key, cik, day, int((kind, key) in over))
+                  for (kind, key, cik), day in first.items())
+    conn.executemany("INSERT INTO link_key (kind, key, cik, first_date, over_cap) "
+                     "VALUES (?, ?, ?, ?, ?)", rows)
+    return {"rows": len(rows), "over_cap": over_cap}
 
 
 def address_key(street1, zip_code):
@@ -172,3 +192,227 @@ def address_key(street1, zip_code):
     if not (street1 and street1.strip() and zip_code and zip_code.strip()):
         return None
     return normalize.address_key(street1, zip_code)
+
+
+# Managers: connected components of CIKs that share a link key.
+
+# Order of kinds when two edges fall on the same date.
+KIND_ORDER = ("entity_stem", "entity_tokens", "signer", "phone", "address")
+
+
+class UnionFind:
+    def __init__(self):
+        self.parent = {}
+
+    def find(self, x):
+        parent = self.parent
+        root = x
+        while parent.setdefault(root, root) != root:
+            root = parent[root]
+        while parent[x] != root:
+            parent[x], x = root, parent[x]
+        return root
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra != rb:
+            self.parent[max(ra, rb)] = min(ra, rb)
+
+
+def _key_groups(conn):
+    """Yield (kind, key, [(first_date, cik), ...] in date order) for each clustering key
+    held by two or more CIKs: CLUSTER_KINDS only, over-cap keys left out."""
+    current, members = None, []
+    marks = ", ".join("?" * len(CLUSTER_KINDS))
+    for r in conn.execute(f"SELECT kind, key, cik, first_date FROM link_key "
+                          f"WHERE kind IN ({marks}) AND over_cap = 0 "
+                          f"ORDER BY kind, key, first_date, cik", CLUSTER_KINDS):
+        group = (r["kind"], r["key"])
+        if group != current:
+            if len(members) > 1:
+                yield current[0], current[1], members
+            current, members = group, []
+        members.append((r["first_date"] or "", r["cik"]))
+    if len(members) > 1:
+        yield current[0], current[1], members
+
+
+def build_managers(conn):
+    """Fill manager and fund_manager from link_key; return the number of managers.
+
+    Managers are the connected components of CIKs sharing an entity_stem or
+    entity_tokens key under the cap; signer, phone and address keys never
+    link (one SPV platform otherwise chains most of EDGAR into one manager,
+    see the decisions log). The CIKs sharing a key are linked in date order: the CIK that held the
+    key first is joined to each later one on the date that one first filed
+    with it. A component's key_kind is the kind of its earliest edge, and
+    each CIK's evidence is its own earliest edge as kind:key.
+    """
+    conn.execute("DELETE FROM fund_manager")
+    conn.execute("DELETE FROM manager")
+    funds = {r["cik"]: (r["first_filing_date"] or "", r["name"]) for r in conn.execute(
+        "SELECT cik, first_filing_date, name FROM fund")}
+    uf = UnionFind()
+    evidence = {}  # cik -> (date, kind rank, "kind:key") of its earliest edge
+    for kind, key, members in _key_groups(conn):
+        rank = KIND_ORDER.index(kind)
+        anchor = members[0][1]
+        for day, cik in members[1:]:
+            if anchor not in funds or cik not in funds:
+                continue
+            uf.union(anchor, cik)
+            edge = (day, rank, f"{kind}:{key}")
+            for c in (anchor, cik):
+                if c not in evidence or edge < evidence[c]:
+                    evidence[c] = edge
+
+    members_of = defaultdict(list)
+    for cik in funds:
+        members_of[uf.find(cik)].append(cik)
+    names = _name_counts(conn, uf)
+    managers, links = [], []
+    for root, ciks in members_of.items():
+        ciks.sort(key=lambda c: (funds[c][0], c))
+        earliest = ciks[0]
+        manager_id = f"m{earliest}"
+        # The component's first edge is the earliest evidence of any member.
+        first_edge = min((evidence[c] for c in ciks if c in evidence), default=None)
+        key_kind = first_edge[2].split(":", 1)[0] if first_edge else None
+        managers.append((manager_id, _display_name(names.get(root), funds[earliest][1]),
+                         key_kind, funds[earliest][0] or None, len(ciks)))
+        links.extend((c, manager_id, evidence[c][2] if c in evidence else None) for c in ciks)
+    conn.executemany("INSERT INTO manager VALUES (?, ?, ?, ?, ?)", sorted(managers))
+    conn.executemany("INSERT INTO fund_manager VALUES (?, ?, ?)", sorted(links))
+    return len(managers)
+
+
+def _name_counts(conn, uf):
+    """root -> {kind: {key: number of member CIKs}} for entity_stem and signer keys."""
+    counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    for r in conn.execute("SELECT kind, key, cik FROM link_key "
+                          "WHERE kind IN ('entity_stem', 'signer') AND over_cap = 0"):
+        counts[uf.find(r["cik"])][r["kind"]][r["key"]] += 1
+    return counts
+
+
+def _display_name(counts, earliest_fund_name):
+    """Most frequent entity stem, else most frequent signer, else the earliest fund's family stem."""
+    for kind in ("entity_stem", "signer"):
+        keys = (counts or {}).get(kind)
+        if keys:
+            return min(keys.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+    return fund_family_stem(earliest_fund_name)
+
+
+# Launches: a manager's pooled funds first filed within LAUNCH_WINDOW_DAYS.
+
+LAUNCH_WINDOW_DAYS = 30
+
+
+def _windows(funds):
+    """Split funds, sorted by first filing date, into launch windows."""
+    out = []
+    for fund in funds:
+        if out and _days(out[-1][0]["first_filing_date"], fund["first_filing_date"]) <= LAUNCH_WINDOW_DAYS:
+            out[-1].append(fund)
+        else:
+            out.append([fund])
+    return out
+
+
+def _days(start, end):
+    if not start or not end:
+        return 0 if start == end else LAUNCH_WINDOW_DAYS + 1
+    return (date.fromisoformat(end) - date.fromisoformat(start)).days
+
+
+def build_launches(conn, score=None):
+    """Fill launch from fund and fund_manager; return the number of launches.
+
+    Every fund whose latest industry group is Pooled Investment Fund belongs
+    to exactly one launch. A manager's funds are walked in first-filing
+    order, and a fund more than LAUNCH_WINDOW_DAYS after the current
+    window's start opens a new launch. Funds of single-fund managers are
+    grouped the same way by fund family stem, which folds master, feeder and
+    offshore vehicles that name no common related person. score(launch,
+    funds) returns (score, reasons) and is applied when given.
+    """
+    conn.execute("DELETE FROM launch")
+    first_d = {}  # cik -> (filing date, accession) of its earliest D filing
+    for r in conn.execute("SELECT cik, min(filing_date || ' ' || accession) FROM filing "
+                          "WHERE submission_type = 'D' GROUP BY cik"):
+        first_d[r[0]] = (r[1][:10], r[1][11:])
+    funds = [dict(r) for r in conn.execute(
+        """
+        SELECT f.*, fm.manager_id, m.n_funds
+        FROM fund f JOIN fund_manager fm USING (cik) JOIN manager m USING (manager_id)
+        WHERE f.industry_group = 'Pooled Investment Fund'
+        ORDER BY f.first_filing_date, f.cik
+        """)]
+    groups = defaultdict(list)
+    for fund in funds:
+        if fund["n_funds"] == 1:
+            groups[("family", fund["family_stem"] or fund["cik"])].append(fund)
+        else:
+            groups[("manager", fund["manager_id"])].append(fund)
+
+    rows = []
+    for _group, members in sorted(groups.items()):
+        for window in _windows(members):
+            # launch_id is the earliest D filing of any fund in the window; a
+            # fund with no D in the database falls back to its first filing.
+            anchors = [(first_d.get(f["cik"]) or (f["first_filing_date"] or "", f["first_accession"]), f)
+                       for f in window]
+            (_day, launch_id), anchor = min(anchors, key=lambda a: a[0])
+            types = {f["fund_type"] for f in window}
+            launch = {
+                "launch_id": launch_id,
+                "manager_id": anchor["manager_id"],
+                "display_name": anchor["name"],
+                "anchor_cik": anchor["cik"],
+                "fund_type": "Hedge Fund" if "Hedge Fund" in types else anchor["fund_type"],
+                "window_start": window[0]["first_filing_date"],
+                "window_end": window[-1]["first_filing_date"],
+                "fund_ciks": json.dumps([f["cik"] for f in window]),
+                "newness_score": None,
+                "newness_reasons": "[]",
+            }
+            if score is not None:
+                points, reasons = score(launch, window)
+                launch["newness_score"], launch["newness_reasons"] = points, json.dumps(reasons)
+            rows.append(launch)
+    if rows:
+        columns = list(rows[0])
+        conn.executemany(
+            f"INSERT INTO launch ({', '.join(columns)}) "
+            f"VALUES ({', '.join(':' + c for c in columns)})", rows)
+    return len(rows)
+
+
+DERIVE_SOURCE = "derive"
+
+
+def run(conn, today=None):
+    """Rebuild every derived table in one transaction and log it; return the counts.
+
+    The ingest_log row (source derive, key the run date) is replaced on every
+    run, since derive always rebuilds from scratch. review is not touched.
+    """
+    started = _now()
+    conn.execute("PRAGMA mmap_size = 4294967296")  # the joins read the raw tables at random
+    conn.execute("PRAGMA cache_size = -131072")
+    counts = {}
+    with conn:
+        counts["fund"] = build_funds(conn)
+        keys = build_link_keys(conn)
+        counts["link_key"], counts["over_cap"] = keys["rows"], keys["over_cap"]
+        counts["manager"] = build_managers(conn)
+        counts["fund_manager"] = counts["fund"]
+        counts["launch"] = build_launches(conn)
+        repo.log_ingest(conn, DERIVE_SOURCE, (today or date.today()).isoformat(), "ok",
+                        n_rows=counts["launch"], started_at=started, finished_at=_now())
+    return counts
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
