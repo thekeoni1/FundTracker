@@ -28,6 +28,7 @@ One entry per work session. Record what shipped, the test state after the sessio
 | Date | Session | Shipped | Tests | Open questions |
 | --- | --- | --- | --- | --- |
 | 2026-10-29 | Planning | PLAN.md, docs/edgar-formd-reference.md (all EDGAR facts verified live), this file, docs/SESSIONS.md with the WP0 prompt. No code. | n/a | None |
+| 2026-10-29 | Session 0 (WP0) | pyproject.toml (src layout), requirements.txt and requirements-dev.txt pinned to the edgardly versions (requests 2.32.3, pytest 8.2.2, pytest-timeout 2.3.1), .gitignore, venv on Python 3.13.2 (the only interpreter installed; requires-python is >=3.12). config.py with user_agent() validation, DATA_DIR, RAW_DIR, DB_PATH, RATE_LIMIT_PER_SEC and .env.example. edgar/client.py: EdgarClient with a token bucket (capacity 1, so requests are at least 1/rate apart), retries on 403, 429, 5xx and connection errors with 1, 2, 4, 8 second backoff and Retry-After, 5 tries then EdgarHTTPError, 30 second timeout, get() returning non-retryable responses such as 404 to the caller, and get_cached() storing 200 bodies under RAW_DIR as <sha256 prefix>_<last two path segments>. Module entry point prints the body to stdout and the cache status to stderr. | 18 passed, no network (a conftest fixture fails any unpatched request) | 4 and 5 below. Live smoke check not yet run, so WP0 exit criteria are not fully met. |
 
 ## Open questions
 
@@ -36,3 +37,5 @@ Numbered, dated, closed in place with the answer and the date.
 1. (2026-10-29) Which schema versions other than X0708 appear in Form D XML filed since 2009, and which elements differ? Only matters for the XML path, which handles recent filings; the data sets flatten older ones. Resolve in WP1 by sampling.
 2. (2026-10-29) Earliest quarter on the Form D data sets page. Resolve in WP2 by scraping the page.
 3. (2026-10-29) Maximum depth of the Latest Filings Atom feed (`start` parameter). Only matters if WP7 intraday refresh is built.
+4. (2026-10-29) The WP0 live smoke check is pending: there is no .env yet and the user chose to create it later. Once FUNDTRACKER_USER_AGENT is set, run `python -m fundtracker.edgar.client https://www.sec.gov/Archives/edgar/data/2158817/000215881726000001/index.json` twice; the first run should report "fetched from EDGAR and cached" and the second "served from cache". Record the result here before starting WP1.
+5. (2026-10-29) PLAN.md section 5 repository layout still describes edgar/client.py as a "rate-limited httpx client". The decisions log settles on requests, which is what was built. The planning session should correct the wording.
