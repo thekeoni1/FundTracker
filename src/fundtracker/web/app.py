@@ -18,8 +18,9 @@ from fundtracker import classify, config, export, newness, traction
 from fundtracker.db import repo
 from fundtracker.web import filters, jobs, links
 
-# Rows a page renders; the summary line says when there are more.
-DISPLAY_LIMIT = 500
+# Rows a page renders; the summary line says when there are more. The default
+# Launches and Emerging views stay under it, so their exports match the screen.
+DISPLAY_LIMIT = 1000
 
 
 def create_app(connect=None, today=None, refresher=None):

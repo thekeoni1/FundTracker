@@ -254,3 +254,5 @@ CREATE INDEX IF NOT EXISTS fund_candidate ON fund(is_hedge_candidate, fund_type)
 CREATE INDEX IF NOT EXISTS fund_manager_manager_id ON fund_manager(manager_id);
 CREATE INDEX IF NOT EXISTS launch_window_start ON launch(window_start);
 CREATE INDEX IF NOT EXISTS launch_manager_id ON launch(manager_id);
+-- The Emerging page selects managers by first_seen_date (Session 8).
+CREATE INDEX IF NOT EXISTS manager_first_seen_date ON manager(first_seen_date);

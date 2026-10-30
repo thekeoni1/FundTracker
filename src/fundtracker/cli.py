@@ -12,6 +12,7 @@
     fund <cik>                               a fund's filings, people and EDGAR links
     manager <id>                             a manager's funds over time
     search "<text>"                          local search over funds, managers, people
+    serve [--host 127.0.0.1] [--port 8000]   the local site
 """
 
 import argparse
@@ -100,6 +101,11 @@ def main(argv=None):
     p = sub.add_parser("search", help="search fund names, manager names and related persons")
     p.add_argument("text")
     p.set_defaults(func=cmd_search)
+
+    p = sub.add_parser("serve", help="run the local site (Launches, Emerging, Refresh)")
+    p.add_argument("--host", default="127.0.0.1", help="address to bind (default 127.0.0.1, this machine only)")
+    p.add_argument("--port", type=int, default=8000)
+    p.set_defaults(func=cmd_serve)
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
@@ -587,6 +593,20 @@ def cmd_search(conn, args):
         where = f"  (on fund {r['cik']})" if r["kind"] == "person" else ""
         print(f"{r['kind']:<8} {ident:<12} {r['name']}{where}")
     print(f"{len(rows)} matches" + (" (first 50)" if len(rows) == 50 else ""))
+    return 0
+
+
+def cmd_serve(conn, args):
+    """Serve the site until interrupted. The site reads through its own read-only
+    connections; conn has only made sure the schema is current."""
+    from fundtracker.web import jobs
+    from fundtracker.web.app import create_app
+
+    path = conn.execute("PRAGMA database_list").fetchone()["file"]
+    app = create_app(connect=lambda: repo.connect_readonly(path),
+                     refresher=jobs.Refresher(jobs.refresh_runner(path)))
+    print(f"FundTracker on http://{args.host}:{args.port}/ (database {path}); Ctrl+C stops it")
+    app.run(host=args.host, port=args.port, debug=False, threaded=True, use_reloader=False)
     return 0
 
 
