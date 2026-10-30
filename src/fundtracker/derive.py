@@ -389,6 +389,57 @@ def build_launches(conn, score=None):
     return len(rows)
 
 
+def launch_scorer(conn):
+    """A score(launch, funds) for build_launches, with the facts newness needs.
+
+    Reads, once per run: for each pooled fund, the earliest date any of its
+    keys under the cap was seen on any filing; its over-cap keys; the
+    signer titles on its first filing; and each manager's fund first-filing
+    dates, to count funds filed before a launch.
+    """
+    from bisect import bisect_left
+
+    from fundtracker import newness
+
+    pooled = "SELECT cik FROM fund WHERE industry_group = 'Pooled Investment Fund'"
+    key_first_seen = dict(conn.execute(
+        f"""
+        WITH seen AS (
+            SELECT kind, key, min(first_date) AS first_seen FROM link_key
+            WHERE over_cap = 0 GROUP BY kind, key
+        )
+        SELECT lk.cik, min(seen.first_seen) FROM link_key lk JOIN seen USING (kind, key)
+        WHERE lk.over_cap = 0 AND lk.cik IN ({pooled}) GROUP BY lk.cik
+        """).fetchall())
+    platforms = defaultdict(set)
+    for r in conn.execute(f"SELECT cik, kind, key FROM link_key WHERE over_cap = 1 "
+                          f"AND kind != 'entity_tokens' AND cik IN ({pooled})"):
+        platforms[r["cik"]].add(r["key"] if r["kind"] == "entity_stem" else f"{r['kind']} {r['key']}")
+    titles = defaultdict(list)
+    for r in conn.execute(f"SELECT f.cik, s.title FROM fund f JOIN signature s "
+                          f"ON s.accession = f.first_accession WHERE f.cik IN ({pooled})"):
+        titles[r["cik"]].append(r["title"])
+    manager_dates = defaultdict(list)
+    for r in conn.execute("SELECT fm.manager_id, f.first_filing_date FROM fund_manager fm "
+                          "JOIN fund f USING (cik) ORDER BY f.first_filing_date"):
+        manager_dates[r[0]].append(r[1] or "")
+
+    def score(launch, funds):
+        start = launch["window_start"]
+        seen = [key_first_seen[f["cik"]] for f in funds if key_first_seen.get(f["cik"])]
+        facts = {
+            "window_start": start,
+            "key_seen_before": bool(seen) and min(seen) < start,
+            "prior_funds": bisect_left(manager_dates[launch["manager_id"]], start),
+            "signer_titles": [t for f in funds for t in titles.get(f["cik"], ())],
+            "platform_keys": sorted({k for f in funds for k in platforms.get(f["cik"], ())}),
+            "funds": [dict(f, exemptions=json.loads(f["exemptions"])) for f in funds],
+        }
+        return newness.score_launch(facts)
+
+    return score
+
+
 DERIVE_SOURCE = "derive"
 
 
@@ -408,7 +459,7 @@ def run(conn, today=None):
         counts["link_key"], counts["over_cap"] = keys["rows"], keys["over_cap"]
         counts["manager"] = build_managers(conn)
         counts["fund_manager"] = counts["fund"]
-        counts["launch"] = build_launches(conn)
+        counts["launch"] = build_launches(conn, score=launch_scorer(conn))
         repo.log_ingest(conn, DERIVE_SOURCE, (today or date.today()).isoformat(), "ok",
                         n_rows=counts["launch"], started_at=started, finished_at=_now())
     return counts
