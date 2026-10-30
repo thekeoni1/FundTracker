@@ -1,4 +1,4 @@
-"""The site's Refresh job: ingest catchup, then derive, in a background thread.
+"""The site's Refresh job: ingest catchup and adv, then derive, in a background thread.
 
 The only place the site touches the network. One job runs at a time; a
 second start while one runs is refused. The job keeps its state (idle,
@@ -84,10 +84,12 @@ def refresh_runner(db_path):
 
 
 def run_refresh(conn, client, log):
-    """Catchup from EDGAR's daily index, then derive, logging each step through log.
+    """Catchup from EDGAR's daily index, the Form ADV files when a new month is due
+    (ingest.adv_due), then derive, logging each step through log.
 
     The one code path behind the site's Refresh button, fundtracker refresh
-    and the scheduled task. Raises RuntimeError after derive if any day failed.
+    and the scheduled task. Raises RuntimeError after derive if any day or adviser
+    file failed.
     """
     progress = logging.getLogger("fundtracker.ingest")
     handler = _LineHandler(log)
@@ -100,12 +102,27 @@ def run_refresh(conn, client, log):
         failed = [r for r in results if r.status == "error"]
         log(f"catchup: {len(results)} days fetched, {sum(r.loaded for r in results)} filings loaded, "
             f"{len(failed)} days failed")
+        adv_failed = []
+        if ingest.adv_due(conn):
+            log("adv: looking for a new month of Form ADV adviser files")
+            try:
+                adv_results = ingest.adv(conn, client)
+                adv_failed = [key for key, status, _n in adv_results if status == "error"]
+            except Exception as exc:  # the page itself failed; derive still runs
+                adv_results, adv_failed = [], [f"the adviser page ({type(exc).__name__}: {exc})"]
+            log("adv: " + ("; ".join(f"{key} {status}" + (f" ({n:,} advisers)" if n else "")
+                                     for key, status, n in adv_results) or "no files listed"))
         log("derive: rebuilding funds, managers and launches (about four minutes)")
         counts = derive.run(conn)
         log(f"derive: {counts['fund']:,} funds, {counts['manager']:,} managers, "
             f"{counts['launch']:,} launches")
+        problems = []
         if failed:
-            raise RuntimeError(f"catchup failed on {', '.join(str(r.day) for r in failed)}")
+            problems.append(f"catchup failed on {', '.join(str(r.day) for r in failed)}")
+        if adv_failed:
+            problems.append(f"adv failed on {', '.join(adv_failed)}")
+        if problems:
+            raise RuntimeError("; ".join(problems))
     finally:
         progress.removeHandler(handler)
         progress.setLevel(level)

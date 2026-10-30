@@ -141,14 +141,46 @@ CREATE TABLE IF NOT EXISTS signature (
 );
 
 CREATE TABLE IF NOT EXISTS ingest_log (
-    source       TEXT NOT NULL,   -- e.g. daily, dataset
-    key          TEXT NOT NULL,   -- e.g. 2026-10-28, 2026q3
+    source       TEXT NOT NULL,   -- e.g. daily, dataset, adv
+    key          TEXT NOT NULL,   -- e.g. 2026-10-28, 2026q3, 2026-10 ria
     status       TEXT NOT NULL,
     n_rows       INTEGER,
     started_at   TEXT,
     finished_at  TEXT,
     error        TEXT,
     PRIMARY KEY (source, key)
+);
+
+-- Form ADV advisers (PLAN.md WP7), the latest monthly snapshot of each kind,
+-- one row per CRD. ingest.adv replaces a kind's rows when it loads a newer
+-- month of that kind. Columns match edgar.adv.AdviserRow.
+CREATE TABLE IF NOT EXISTS adviser (
+    crd                    TEXT PRIMARY KEY,
+    kind                   TEXT NOT NULL,   -- ria (registered) or era (exempt reporting)
+    as_of                  TEXT NOT NULL,   -- the file's month, 2026-10
+    sec_number             TEXT,
+    firm_type              TEXT,
+    cik                    TEXT,
+    name                   TEXT,            -- Primary Business Name
+    legal_name             TEXT,
+    street1                TEXT,
+    city                   TEXT,
+    state                  TEXT,
+    country                TEXT,
+    postal_code            TEXT,
+    phone                  TEXT,
+    website                TEXT,
+    status                 TEXT,
+    latest_filing_date     TEXT,
+    employees              INTEGER,         -- 5A, ria only
+    advisory_employees     INTEGER,         -- 5B(1), ria only
+    raum                   INTEGER,         -- 5F(2)(c), ria only
+    accounts               INTEGER,         -- 5F(2)(d), ria only
+    advises_private_funds  INTEGER,         -- 7B
+    n_private_funds        INTEGER,
+    any_hedge_funds        INTEGER,
+    n_hedge_funds          INTEGER,
+    private_fund_assets    INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS filing_filing_date ON filing(filing_date);
@@ -239,6 +271,17 @@ CREATE TABLE IF NOT EXISTS launch (
     fund_ciks        TEXT NOT NULL DEFAULT '[]',
     newness_score    INTEGER,
     newness_reasons  TEXT NOT NULL DEFAULT '[]'
+);
+
+-- A manager's Form ADV adviser (derive.build_manager_advisers). One row per
+-- manager with at least one candidate adviser. crd is set for a high or
+-- medium link and NULL when there are only candidates.
+CREATE TABLE IF NOT EXISTS manager_adviser (
+    manager_id   TEXT PRIMARY KEY,
+    crd          TEXT,
+    confidence   TEXT NOT NULL,                -- high, medium or none
+    match_kinds  TEXT NOT NULL DEFAULT '[]',   -- JSON: name, phone, address, hedge_tiebreak
+    evidence     TEXT NOT NULL DEFAULT '{}'    -- JSON: matched keys and candidate CRDs
 );
 
 -- search_index (FTS5) is created by repo.rebuild_search_index when derive runs.

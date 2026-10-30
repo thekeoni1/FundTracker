@@ -109,7 +109,7 @@ def test_refresh_shows_a_failure(db_path):
     assert "Refresh failed: RuntimeError: no route to host" in status and "every 2s" not in status
 
 
-def test_the_real_runner_does_catchup_then_derive(db_path, monkeypatch):
+def test_the_real_runner_does_catchup_adv_then_derive(db_path, monkeypatch):
     from fundtracker.edgar import client as edgar_client
 
     calls = []
@@ -125,12 +125,14 @@ def test_the_real_runner_does_catchup_then_derive(db_path, monkeypatch):
 
     monkeypatch.setattr(edgar_client, "EdgarClient", lambda: object())
     monkeypatch.setattr(jobs.ingest, "catchup", catchup)
+    monkeypatch.setattr(jobs.ingest, "adv", lambda conn, client: calls.append("adv") or [])
     monkeypatch.setattr(jobs.derive, "run", run)
     lines = []
     jobs.refresh_runner(db_path)(lines.append)
-    assert calls == ["catchup", "derive"]
+    assert calls == ["catchup", "adv", "derive"]
     assert lines == ["catchup: loading every weekday not yet loaded", "2026-10-29: ok, 40 listed",
                      "catchup: 0 days fetched, 0 filings loaded, 0 days failed",
+                     "adv: looking for a new month of Form ADV adviser files", "adv: no files listed",
                      "derive: rebuilding funds, managers and launches (about four minutes)",
                      "derive: 12 funds, 12 managers, 10 launches"]
     assert not jobs.logging.getLogger("fundtracker.ingest").handlers

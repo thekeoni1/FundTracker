@@ -7,6 +7,9 @@ marked ok, or absent and marked error.
 daily loads one day's Form D filings from the daily form index. Each filing
 commits on its own, so a run that stops halfway keeps what it loaded and the
 next run fetches only the rest.
+
+adv loads the newest monthly Form ADV file of each kind, registered and
+exempt, replacing that kind's advisers in one transaction with its log row.
 """
 
 import logging
@@ -16,6 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from fundtracker import config
 from fundtracker.db import repo
+from fundtracker.edgar import adv as adv_files
 from fundtracker.edgar import datasets
 from fundtracker.edgar import index as daily_index
 from fundtracker.edgar.client import is_not_found
@@ -26,6 +30,7 @@ log = logging.getLogger(__name__)
 
 DATASET_SOURCE = "dataset"
 DAILY_SOURCE = "daily"
+ADV_SOURCE = "adv"
 
 
 @dataclass
@@ -231,3 +236,64 @@ def catchup(conn, client, until=None, today=None):
             results.append(daily(conn, client, day))
         day += timedelta(days=1)
     return results
+
+
+def adv_key(month, kind):
+    """The ingest_log key of one adviser file: "2026-10 ria"."""
+    return f"{month} {kind}"
+
+
+def adv(conn, client):
+    """Load the newest registered and exempt adviser files not already logged ok.
+
+    Each kind is looked at on its own: a month with only one file loads that
+    file and leaves the other kind's advisers as they were. A file loads in
+    one transaction with its ingest_log row (source adv, key "2026-10 ria"),
+    replacing every adviser of its kind. Returns a list of (key, status,
+    advisers loaded); a file already loaded reports "skipped".
+    """
+    files = adv_files.fetch_adv_files(client)
+    results = []
+    for kind in adv_files.KINDS:
+        newest = [f for f in files if f.kind == kind]
+        if not newest:
+            log.warning("the adviser data page links no %s file", kind)
+            continue
+        f = newest[-1]
+        key = adv_key(f.month, kind)
+        status = repo.ingest_status(conn, ADV_SOURCE, key)
+        if status and status["status"] == "ok":
+            results.append((key, "skipped", 0))
+            continue
+        results.append(load_adv_file(conn, client, f))
+    return results
+
+
+def load_adv_file(conn, client, f):
+    """Download one adviser file and replace its kind's advisers; return (key, status, rows)."""
+    key = adv_key(f.month, f.kind)
+    started = _now()
+    try:
+        response = client.get(f.url)
+        response.raise_for_status()
+        rows = adv_files.read_adv_csv(response.content, f.kind)
+        with conn:
+            n_rows = repo.replace_advisers(conn, f.kind, f.month, rows)
+            repo.log_ingest(conn, ADV_SOURCE, key, "ok", n_rows=n_rows,
+                            started_at=started, finished_at=_now())
+    except Exception as exc:  # recorded; the other kind is still tried
+        log.exception("loading adviser file %s failed", key)
+        with conn:
+            repo.log_ingest(conn, ADV_SOURCE, key, "error", started_at=started,
+                            finished_at=_now(), error=f"{type(exc).__name__}: {exc}")
+        return key, "error", 0
+    log.info("loaded %s: %d advisers", key, n_rows)
+    return key, "ok", n_rows
+
+
+def adv_due(conn, today=None):
+    """True unless both kinds have a file of today's month loaded, so refresh looks at
+    the adviser page once a day until the month's files appear and not after."""
+    month = (today or date.today()).strftime("%Y-%m")
+    return any((repo.ingest_status(conn, ADV_SOURCE, adv_key(month, kind)) or {}).get("status") != "ok"
+               for kind in adv_files.KINDS)

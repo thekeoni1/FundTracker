@@ -55,16 +55,45 @@ def test_a_failed_day_does_not_count(conn):
     assert jobs.is_stale(conn, date(2026, 10, 30))
 
 
-def test_run_refresh_runs_catchup_then_derive_and_logs_both(conn, monkeypatch):
+def test_run_refresh_runs_catchup_adv_then_derive_and_logs_each(conn, monkeypatch):
     calls = []
     monkeypatch.setattr(ingest, "catchup", lambda c, client: calls.append(("catchup", client)) or [])
+    monkeypatch.setattr(ingest, "adv", lambda c, client: calls.append(("adv", client))
+                        or [("2026-10 ria", "ok", 17210), ("2026-10 era", "skipped", 0)])
     monkeypatch.setattr(derive, "run", lambda c: calls.append(("derive", None))
                         or {"fund": 3, "manager": 2, "launch": 1})
     lines = []
     jobs.run_refresh(conn, "client", lines.append)
-    assert calls == [("catchup", "client"), ("derive", None)]
+    assert calls == [("catchup", "client"), ("adv", "client"), ("derive", None)]
     assert lines[1] == "catchup: 0 days fetched, 0 filings loaded, 0 days failed"
+    assert lines[3] == "adv: 2026-10 ria ok (17,210 advisers); 2026-10 era skipped"
     assert lines[-1] == "derive: 3 funds, 2 managers, 1 launches"
+
+
+def test_run_refresh_skips_adv_once_this_months_files_are_in(conn, monkeypatch):
+    month = date.today().strftime("%Y-%m")
+    for kind in ("ria", "era"):
+        repo.log_ingest(conn, ingest.ADV_SOURCE, f"{month} {kind}", "ok")
+    conn.commit()
+    monkeypatch.setattr(ingest, "catchup", lambda c, client: [])
+    monkeypatch.setattr(ingest, "adv", lambda c, client: pytest.fail("adv ran"))
+    monkeypatch.setattr(derive, "run", lambda c: {"fund": 0, "manager": 0, "launch": 0})
+    lines = []
+    jobs.run_refresh(conn, "client", lines.append)
+    assert not any(line.startswith("adv") for line in lines)
+
+
+def test_a_failed_adviser_page_still_derives_then_fails(conn, monkeypatch):
+    def broken(c, client):
+        raise ConnectionError("down")
+
+    derived = []
+    monkeypatch.setattr(ingest, "catchup", lambda c, client: [])
+    monkeypatch.setattr(ingest, "adv", broken)
+    monkeypatch.setattr(derive, "run", lambda c: derived.append(1) or {"fund": 0, "manager": 0, "launch": 0})
+    with pytest.raises(RuntimeError, match="adv failed on the adviser page"):
+        jobs.run_refresh(conn, "client", lambda line: None)
+    assert derived == [1]
 
 
 def test_refresh_command_calls_the_shared_function(tmp_path, monkeypatch, capsys):

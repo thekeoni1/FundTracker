@@ -152,6 +152,25 @@ def ingest_status(conn, source, key):
     return dict(row) if row else None
 
 
+def replace_advisers(conn, kind, as_of, rows):
+    """Replace every adviser of kind with rows (edgar.adv.AdviserRow) as of month as_of;
+    return how many were written. Does not commit.
+
+    The two files share no CRD in October 2026; should one appear in both, the
+    registered row wins whichever file loads last.
+    """
+    conn.execute("DELETE FROM adviser WHERE kind = ?", (kind,))
+    rows = [dataclasses.asdict(r) for r in rows]
+    if not rows:
+        return 0
+    columns = ["as_of", *rows[0]]
+    verb = "INSERT OR REPLACE" if kind == "ria" else "INSERT OR IGNORE"
+    conn.executemany(
+        f"{verb} INTO adviser ({', '.join(columns)}) VALUES ({', '.join('?' * len(columns))})",
+        ([as_of, *(_to_sql(v) for v in r.values())] for r in rows))
+    return conn.execute("SELECT count(*) FROM adviser WHERE kind = ?", (kind,)).fetchone()[0]
+
+
 def get_filing(conn, accession):
     """The FormDFiling stored under accession, or None."""
     row = conn.execute("SELECT * FROM filing WHERE accession = ?", (accession,)).fetchone()

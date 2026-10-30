@@ -3,10 +3,12 @@
     backfill [--from 2009q1] [--to 2026q3]   load the quarterly data sets
     ingest daily [--date 2026-10-28]         load one day from the daily form index
     ingest catchup [--until 2026-10-28]      load every weekday not yet loaded
+    ingest adv                               load the newest monthly Form ADV adviser files
     stats [--quarter 2026q3]                 what the database holds
     derive                                   rebuild funds, managers and launches
-    refresh                                  ingest catchup, then derive (what the site's
-                                             Refresh button and the scheduled task run)
+    refresh                                  ingest catchup, ingest adv when a new month
+                                             is due, then derive (what the site's Refresh
+                                             button and the scheduled task run)
     schedule install|show|remove             a weekday 06:30 refresh in Task Scheduler
     digest [--since 7d] [--out PATH]         the week's launches and emerging changes, as Markdown
     new [--since 7d] [--min-score N] [--type hedge|all] [--xlsx [PATH]] [--csv PATH]
@@ -59,6 +61,8 @@ def main(argv=None):
     q.add_argument("--until", type=date.fromisoformat, metavar="YYYY-MM-DD",
                    help="last day to load (default: yesterday)")
     q.set_defaults(func=cmd_ingest_catchup)
+    q = ingest_sub.add_parser("adv", help="load the newest registered and exempt Form ADV adviser files")
+    q.set_defaults(func=cmd_ingest_adv)
 
     p = sub.add_parser("stats", help="counts by source, form and fund type, and recent ingest steps")
     p.add_argument("--quarter", type=Quarter.parse, metavar="YYYYqN",
@@ -68,7 +72,7 @@ def main(argv=None):
     p = sub.add_parser("derive", help="rebuild the derived fund, manager and launch tables")
     p.set_defaults(func=cmd_derive)
 
-    p = sub.add_parser("refresh", help="ingest catchup, then derive: the site's Refresh job")
+    p = sub.add_parser("refresh", help="ingest catchup and adv, then derive: the site's Refresh job")
     p.set_defaults(func=cmd_refresh)
 
     p = sub.add_parser("schedule", help="add, show or remove a weekday 06:30 refresh task")
@@ -198,6 +202,20 @@ def cmd_ingest_catchup(conn, args):
           f"{by_status['error']} error), {sum(r.loaded for r in results)} filings loaded, "
           f"in {time.monotonic() - started:.0f}s")
     return 1 if by_status["error"] else 0
+
+
+def cmd_ingest_adv(conn, args):
+    from fundtracker.edgar.client import EdgarClient
+
+    _progress_to_stdout(args)
+    started = time.monotonic()
+    results = ingest.adv(conn, EdgarClient())
+    for key, status, n_rows in results:
+        print(f"{key}: {n_rows:,} advisers loaded" if status == "ok" else f"{key}: {status}"
+              + (" (already loaded)" if status == "skipped" else ""))
+    print(f"{sum(n for _k, _s, n in results):,} advisers loaded in {time.monotonic() - started:.0f}s; "
+          "run derive to match them to managers")
+    return 1 if any(s == "error" for _k, s, _n in results) else 0
 
 
 def cmd_stats(conn, args):
