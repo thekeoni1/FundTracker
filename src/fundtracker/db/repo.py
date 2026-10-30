@@ -199,3 +199,97 @@ def _from_row(cls, row):
             value = bool(value)
         kwargs[f.name] = value
     return cls(**kwargs)
+
+
+# Readers over the derived tables (derive.py), for the CLI and later the UI.
+
+
+def launches_since(conn, since, min_score=0, fund_types=None):
+    """Launches with window_start on or after since, best score first, then newest.
+
+    fund_types limits the launch's fund_type (None for every type). Each row
+    is a dict of the launch columns plus manager_name and the anchor fund's
+    fund columns prefixed with fund_.
+    """
+    where = ["l.window_start >= ?", "coalesce(l.newness_score, 0) >= ?"]
+    params = [since, min_score]
+    if fund_types:
+        where.append(f"l.fund_type IN ({', '.join('?' * len(fund_types))})")
+        params.extend(fund_types)
+    fund_columns = [r["name"] for r in conn.execute("PRAGMA table_info(fund)")]
+    rows = conn.execute(
+        f"""
+        SELECT l.*, m.display_name AS manager_name,
+               {', '.join(f'f.{c} AS fund_{c}' for c in fund_columns)}
+        FROM launch l
+        LEFT JOIN manager m ON m.manager_id = l.manager_id
+        LEFT JOIN fund f ON f.cik = l.anchor_cik
+        WHERE {' AND '.join(where)}
+        ORDER BY l.newness_score DESC, l.window_start DESC, l.launch_id
+        """, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_fund(conn, cik):
+    """The fund row for cik as a dict, with manager_id, or None. Accepts an unpadded CIK."""
+    row = conn.execute(
+        """
+        SELECT f.*, fm.manager_id, fm.evidence FROM fund f
+        LEFT JOIN fund_manager fm USING (cik) WHERE f.cik = ?
+        """, (pad_cik(cik),)).fetchone()
+    return dict(row) if row else None
+
+
+def get_manager(conn, manager_id):
+    """The manager row as a dict with its funds (oldest first) under "funds", or None."""
+    row = conn.execute("SELECT * FROM manager WHERE manager_id = ?", (manager_id,)).fetchone()
+    if row is None:
+        return None
+    manager = dict(row)
+    manager["funds"] = [dict(r) for r in conn.execute(
+        """
+        SELECT f.*, fm.evidence FROM fund_manager fm JOIN fund f USING (cik)
+        WHERE fm.manager_id = ? ORDER BY f.first_filing_date, f.cik
+        """, (manager_id,))]
+    return manager
+
+
+def search_names(conn, text, limit=50):
+    """Case-insensitive local search over fund names, manager names and related persons.
+
+    Returns up to limit dicts with kind (fund, manager or person), id (a CIK
+    or manager_id), name and, for persons, the CIK of a fund they appear on.
+    """
+    pattern = _like_pattern(text)
+    rows = conn.execute(
+        """
+        SELECT * FROM (
+            SELECT 'fund' AS kind, cik AS id, name, NULL AS cik, 1 AS rank FROM fund
+            WHERE name LIKE :p ESCAPE '!'
+            UNION ALL
+            SELECT 'manager', manager_id, display_name, NULL, 0 FROM manager
+            WHERE display_name LIKE :p ESCAPE '!'
+            UNION ALL
+            SELECT 'person', rp.name_norm, rp.name_norm, min(f.cik), 2
+            FROM related_person rp JOIN filing f USING (accession)
+            WHERE rp.name_norm LIKE :p ESCAPE '!' GROUP BY rp.name_norm
+        ) ORDER BY rank, name LIMIT :limit
+        """, {"p": pattern, "limit": limit}).fetchall()
+    return [{k: r[k] for k in ("kind", "id", "name", "cik")} for r in rows]
+
+
+def _like_pattern(text):
+    """%text% for LIKE ... ESCAPE '!', with the wildcards in text escaped.
+
+    SQLite's LIKE ignores case for ASCII letters, so no upper() is needed.
+    """
+    text = (text or "").strip()
+    for ch in ("!", "%", "_"):
+        text = text.replace(ch, "!" + ch)
+    return f"%{text}%"
+
+
+def pad_cik(cik):
+    """A CIK as stored: ten digits with leading zeros."""
+    cik = str(cik).strip()
+    return cik.zfill(10) if cik.isdigit() else cik

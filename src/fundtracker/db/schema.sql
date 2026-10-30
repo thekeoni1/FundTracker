@@ -159,3 +159,83 @@ CREATE INDEX IF NOT EXISTS signature_signer_norm ON signature(signer_norm);
 CREATE INDEX IF NOT EXISTS issuer_cik ON issuer(cik);
 CREATE INDEX IF NOT EXISTS issuer_phone ON issuer(phone);
 CREATE INDEX IF NOT EXISTS issuer_address ON issuer(zip, street1);
+
+-- Derived tables (PLAN.md section 6), refilled by derive.run on every run.
+-- derive deletes and reinserts their rows and never drops them, so indexes
+-- added by hand survive. review is user state and derive never touches it.
+
+CREATE TABLE IF NOT EXISTS fund (
+    cik                                 TEXT PRIMARY KEY,
+    name                                TEXT,
+    family_stem                         TEXT,
+    fund_type                           TEXT,      -- classification fields from the latest filing
+    industry_group                      TEXT,
+    first_filing_date                   TEXT,
+    first_accession                     TEXT,
+    latest_filing_date                  TEXT,
+    latest_accession                    TEXT,
+    n_filings                           INTEGER NOT NULL,
+    exemptions                          TEXT NOT NULL DEFAULT '[]',   -- normalised, 06 as 06b
+    state                               TEXT,
+    country                             TEXT,
+    is_hedge_candidate                  INTEGER NOT NULL,
+    candidate_reason                    TEXT NOT NULL DEFAULT '',
+    -- offering terms from the first filing, the notice that launched the fund
+    sale_yet_to_occur                   INTEGER,
+    total_amount_sold_num               INTEGER,
+    n_investors                         INTEGER,
+    min_investment_num                  INTEGER,
+    total_offering_amount_num           INTEGER,
+    total_offering_amount_is_indefinite INTEGER,
+    year_of_inc_choice                  TEXT,
+    year_of_inc_value                   INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS link_key (
+    kind        TEXT NOT NULL,   -- entity_stem, entity_tokens, signer, phone, address
+    key         TEXT NOT NULL,
+    cik         TEXT NOT NULL,
+    first_date  TEXT,            -- earliest filing of this CIK that carries the key
+    PRIMARY KEY (kind, key, cik)
+);
+
+CREATE TABLE IF NOT EXISTS manager (
+    manager_id       TEXT PRIMARY KEY,   -- m plus the CIK of the member with the earliest first filing
+    display_name     TEXT,
+    key_kind         TEXT,               -- kind of the key that gave the cluster its first edge
+    first_seen_date  TEXT,
+    n_funds          INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fund_manager (
+    cik         TEXT PRIMARY KEY,
+    manager_id  TEXT NOT NULL,
+    evidence    TEXT                     -- the key that linked this CIK, as kind:key
+);
+
+CREATE TABLE IF NOT EXISTS launch (
+    launch_id        TEXT PRIMARY KEY,   -- accession of the earliest D filing in the launch
+    manager_id       TEXT NOT NULL,
+    display_name     TEXT,
+    anchor_cik       TEXT,               -- the fund that filed launch_id
+    fund_type        TEXT,
+    window_start     TEXT NOT NULL,
+    window_end       TEXT NOT NULL,
+    fund_ciks        TEXT NOT NULL DEFAULT '[]',
+    newness_score    INTEGER,
+    newness_reasons  TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS review (
+    launch_id   TEXT PRIMARY KEY,        -- a launch_id, or a CIK for a fund-level note
+    status      TEXT NOT NULL DEFAULT 'new',   -- new, reviewed, watching, contacted, ignore
+    notes       TEXT,
+    updated_at  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS link_key_kind_key ON link_key(kind, key);
+CREATE INDEX IF NOT EXISTS fund_first_filing_date ON fund(first_filing_date);
+CREATE INDEX IF NOT EXISTS fund_candidate ON fund(is_hedge_candidate, fund_type);
+CREATE INDEX IF NOT EXISTS fund_manager_manager_id ON fund_manager(manager_id);
+CREATE INDEX IF NOT EXISTS launch_window_start ON launch(window_start);
+CREATE INDEX IF NOT EXISTS launch_manager_id ON launch(manager_id);
