@@ -4,15 +4,25 @@
     ingest daily [--date 2026-10-28]         load one day from the daily form index
     ingest catchup [--until 2026-10-28]      load every weekday not yet loaded
     stats [--quarter 2026q3]                 what the database holds
+    derive                                   rebuild funds, managers and launches
+    new [--since 7d] [--min-score N] [--type hedge|all] [--csv PATH]
+                                             launches since a date, best score first
+    fund <cik>                               a fund's filings, people and EDGAR links
+    manager <id>                             a manager's funds over time
+    search "<text>"                          local search over funds, managers, people
 """
 
 import argparse
+import csv
+import json
 import logging
+import re
 import sys
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
-from fundtracker import config, ingest
+from fundtracker import config, derive, ingest
 from fundtracker.db import repo
 from fundtracker.edgar.datasets import Quarter
 
@@ -43,6 +53,31 @@ def main(argv=None):
     p.add_argument("--quarter", type=Quarter.parse, metavar="YYYYqN",
                    help="also count one quarter's data set filings and Hedge Fund offerings")
     p.set_defaults(func=cmd_stats)
+
+    p = sub.add_parser("derive", help="rebuild the derived fund, manager and launch tables")
+    p.set_defaults(func=cmd_derive)
+
+    p = sub.add_parser("new", help="launches first filed since a date, best newness score first")
+    p.add_argument("--since", default=parse_since("7d"), type=parse_since, metavar="7d|30d|YYYY-MM-DD",
+                   help="days back from today, or a date (default 7d)")
+    p.add_argument("--min-score", type=int, default=0, metavar="N")
+    p.add_argument("--type", choices=("hedge", "all"), default="hedge",
+                   help="hedge: launches with a Hedge Fund; all: every pooled fund (default hedge)")
+    p.add_argument("--csv", metavar="PATH",
+                   help="also write the rows with every launch and fund column")
+    p.set_defaults(func=cmd_new)
+
+    p = sub.add_parser("fund", help="one fund's filings, related persons, signers and EDGAR links")
+    p.add_argument("cik")
+    p.set_defaults(func=cmd_fund)
+
+    p = sub.add_parser("manager", help="one manager and every fund linked to it")
+    p.add_argument("manager_id")
+    p.set_defaults(func=cmd_manager)
+
+    p = sub.add_parser("search", help="search fund names, manager names and related persons")
+    p.add_argument("text")
+    p.set_defaults(func=cmd_search)
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
@@ -174,6 +209,174 @@ def cmd_stats(conn, args):
         note = f" ({r['error']})" if r["error"] else ""
         print(f"  {r['source']:<8} {r['key']:<10} {r['status']:<8} {r['n_rows'] or 0:>7,} rows  "
               f"{r['finished_at']}{note}")
+    return 0
+
+
+def cmd_derive(conn, args):
+    started = time.monotonic()
+    counts = derive.run(conn)
+    over = ", ".join(f"{n} {kind}" for kind, n in counts["over_cap"].items())
+    print(f"{counts['fund']:,} funds, {counts['manager']:,} managers, {counts['launch']:,} launches, "
+          f"{counts['link_key']:,} link keys ({over} over the cap), "
+          f"in {time.monotonic() - started:.0f}s")
+    return 0
+
+
+def parse_since(text, today=None):
+    """7d or 30d counts back from today; anything else is an ISO date."""
+    m = re.fullmatch(r"(\d+)d", text.strip())
+    if m:
+        return ((today or date.today()) - timedelta(days=int(m.group(1)))).isoformat()
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected 7d, 30d or YYYY-MM-DD, not {text!r}")
+
+
+EDGAR_FOLDER = "https://www.sec.gov/Archives/edgar/data/{cik}/{folder}/"
+
+
+def edgar_folder(cik, accession):
+    return EDGAR_FOLDER.format(cik=int(cik), folder=accession.replace("-", ""))
+
+
+def _launch_name(row):
+    n = len(json.loads(row["fund_ciks"]))
+    return (row["display_name"] or "") + (f" (+{n - 1})" if n > 1 else "")
+
+
+def _amount(value):
+    return "" if value is None else f"{value:,}"
+
+
+def _top_reasons(row, n=2):
+    """The codes of the n reasons with the most points either way."""
+    reasons = json.loads(row["newness_reasons"] or "[]")
+    return [r["code"] for r in sorted(reasons, key=lambda r: -abs(r["points"]))[:n]]
+
+
+def _short_type(fund_type):
+    return (fund_type or "").replace(" Fund", "").replace("Investment", "Inv")
+
+
+def _offering(row):
+    if row["fund_total_offering_amount_is_indefinite"]:
+        return "Indefinite"
+    return _amount(row["fund_total_offering_amount_num"])
+
+
+# The columns new prints, as (header, width, value of a launches_since row).
+# Fund columns come from the launch's anchor fund. Width 0 is not cut.
+NEW_COLUMNS = (
+    ("date", 10, lambda r: r["window_start"]),
+    ("launch", 34, _launch_name),
+    ("manager", 28, lambda r: r["manager_name"] or ""),
+    ("type", 10, lambda r: _short_type(r["fund_type"])),
+    ("exemptions", 14, lambda r: ",".join(json.loads(r["fund_exemptions"] or "[]"))),
+    ("min", 11, lambda r: _amount(r["fund_min_investment_num"])),
+    ("offering", 13, _offering),
+    ("state", 5, lambda r: r["fund_state"] or ""),
+    ("score", 5, lambda r: "" if r["newness_score"] is None else str(r["newness_score"])),
+    ("reasons", 32, lambda r: " ".join(_top_reasons(r))),
+    ("edgar", 0, lambda r: edgar_folder(r["anchor_cik"], r["launch_id"])),
+)
+
+
+def _cell(text, width):
+    text = str(text)
+    if not width:
+        return text
+    return (text[:width - 1] + "~") if len(text) > width else text.ljust(width)
+
+
+def cmd_new(conn, args):
+    fund_types = ["Hedge Fund"] if args.type == "hedge" else None
+    rows = repo.launches_since(conn, args.since, args.min_score, fund_types)
+    if not rows and not conn.execute("SELECT 1 FROM launch LIMIT 1").fetchone():
+        print("no launches yet: run fundtracker derive first")
+        return 1
+    print("  ".join(_cell(h, w) for h, w, _v in NEW_COLUMNS).rstrip())
+    for r in rows:
+        print("  ".join(_cell(value(r), w) for _h, w, value in NEW_COLUMNS).rstrip())
+    print(f"{len(rows)} launches since {args.since}"
+          + (f" with score >= {args.min_score}" if args.min_score else "")
+          + (", Hedge Fund only" if args.type == "hedge" else ", every pooled fund type"))
+    if args.csv:
+        _write_new_csv(args.csv, rows)
+        print(f"wrote {args.csv}")
+    return 0
+
+
+def _write_new_csv(path, rows):
+    """The printed columns, then every launch column and every anchor fund column (fund_*)."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    raw = list(rows[0]) if rows else []
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        out = csv.writer(fh)
+        out.writerow([h for h, _w, _v in NEW_COLUMNS] + raw)
+        for r in rows:
+            out.writerow([value(r) for _h, _w, value in NEW_COLUMNS] + [r[c] for c in raw])
+
+
+def cmd_fund(conn, args):
+    fund = repo.get_fund(conn, args.cik)
+    filings = repo.filings_for_cik(conn, repo.pad_cik(args.cik))
+    if fund is None and not filings:
+        print(f"no fund with CIK {args.cik}")
+        return 1
+    if fund:
+        candidate = f", hedge candidate ({fund['candidate_reason']})" if fund["is_hedge_candidate"] else ""
+        print(f"{fund['name']} (CIK {fund['cik']}), {fund['fund_type'] or fund['industry_group']}"
+              f"{candidate}")
+        linked = f", linked by {fund['evidence']}" if fund["evidence"] else ""
+        print(f"manager {fund['manager_id']}{linked}")
+    print("filings")
+    for f in filings:
+        o = f.offering
+        offering = "Indefinite" if o.total_offering_amount_is_indefinite else _amount(o.total_offering_amount_num)
+        investors = "-" if o.n_investors is None else o.n_investors
+        print(f"  {f.filing.filing_date}  {f.filing.submission_type:<4} {f.accession}  "
+              f"{','.join(o.exemptions):<14} offering {offering or '-'}, "
+              f"sold {_amount(o.total_amount_sold_num) or '-'}, "
+              f"min {_amount(o.min_investment_num) or '-'}, investors {investors}")
+    print("related persons")
+    people = {}
+    for f in filings:
+        for p in f.related_persons:
+            people.setdefault(p.name_norm, (p.relationships, p.is_entity))
+    for name, (relationships, entity) in people.items():
+        print(f"  {name}{' (entity)' if entity else ''}: {', '.join(relationships)}")
+    print("signers")
+    signers = {(s.signer_norm or "", s.title or "") for f in filings for s in f.signatures}
+    for signer, title in sorted(signers):
+        print(f"  {signer}, {title}")
+    print("EDGAR")
+    for f in filings:
+        print(f"  {edgar_folder(f.filing.cik, f.accession)}")
+    return 0
+
+
+def cmd_manager(conn, args):
+    m = repo.get_manager(conn, args.manager_id)
+    if m is None:
+        print(f"no manager {args.manager_id}")
+        return 1
+    linked = f", linked by {m['key_kind']}" if m["key_kind"] else ""
+    print(f"{m['display_name']} ({m['manager_id']}), first seen {m['first_seen_date']}, "
+          f"{m['n_funds']} funds{linked}")
+    for f in m["funds"]:
+        print(f"  {f['first_filing_date']} to {f['latest_filing_date']}  {f['cik']}  "
+              f"{_cell(f['name'] or '', 50)}  {f['fund_type'] or f['industry_group'] or ''}")
+    return 0
+
+
+def cmd_search(conn, args):
+    rows = repo.search_names(conn, args.text)
+    for r in rows:
+        ident = "" if r["kind"] == "person" else r["id"]
+        where = f"  (on fund {r['cik']})" if r["kind"] == "person" else ""
+        print(f"{r['kind']:<8} {ident:<12} {r['name']}{where}")
+    print(f"{len(rows)} matches" + (" (first 50)" if len(rows) == 50 else ""))
     return 0
 
 
