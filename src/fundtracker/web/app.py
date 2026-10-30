@@ -12,7 +12,7 @@ from datetime import date
 
 from flask import Flask, g, render_template, request, url_for
 
-from fundtracker import classify, config, newness
+from fundtracker import classify, config, newness, traction
 from fundtracker.db import repo
 from fundtracker.web import filters, links
 
@@ -62,6 +62,20 @@ def create_app(connect=None, today=None):
     def launches_table():
         return _partial("_launches_table.html", "launches", launch_context())
 
+    def emerging_context():
+        f = filters.emerging_filters(request.args, today())
+        rows = emerging_rows(db(), f, today())
+        return {"f": f, "rows": rows[:DISPLAY_LIMIT], "total": len(rows),
+                "summary": filters.describe_emerging(f), "query": _query()}
+
+    @app.get("/emerging")
+    def emerging():
+        return page("emerging.html", options=filters, **emerging_context())
+
+    @app.get("/emerging/table")
+    def emerging_table():
+        return _partial("_emerging_table.html", "emerging", emerging_context())
+
     return app
 
 
@@ -72,6 +86,22 @@ def launch_rows(conn, f):
         fund_types=["Hedge Fund"] if f["type"] == "hedge" else None, rule=f["rule"],
         states=f["state"], min_inv=f["min_inv"], raised=f["raised"],
         hide_platforms=f["platforms"] == "hide", sort=f["sort"])
+
+
+def emerging_rows(conn, f, today):
+    """Every manager the Emerging filters f select, scored as of today, in the chosen order."""
+    managers = repo.managers_first_seen(
+        conn, f["first_seen_from"], f["first_seen_to"],
+        ["Hedge Fund"] if f["type"] == "hedge" else None, exclude_over_cap=f["platforms"] == "hide",
+        max_funds=traction.EMERGING_MAX_FUNDS, raised=f["raised"], states=f["state"],
+        prior_firm=f["prior_firm"])
+    rows = traction.score_managers(managers, today, f["type"], f["min_score"])
+    # Python's sort is stable, so each other order keeps the score order within a tie.
+    if f["sort"] == "raised":
+        rows.sort(key=lambda m: m["total_sold"] or 0, reverse=True)
+    elif f["sort"] == "first_seen":
+        rows.sort(key=lambda m: m["first_seen_date"], reverse=True)
+    return rows
 
 
 def _query():
@@ -107,6 +137,16 @@ def _platform(row):
     return next((r["detail"] for r in _launch_reasons(row) if r["code"] == "platform"), "")
 
 
+def _people(manager):
+    return [p["name"] for p in json.loads(manager["people"] or "[]")]
+
+
+def _people_short(manager):
+    """The first two names, then +N for the rest."""
+    names = _people(manager)
+    return ", ".join(names[:2]) + (f" +{len(names) - 2}" if len(names) > 2 else "")
+
+
 def _register_filters(app):
     app.jinja_env.filters.update(
         amount=_amount,
@@ -116,5 +156,9 @@ def _register_filters(app):
         rule_506=lambda exemptions: classify.rule_506(json.loads(exemptions or "[]")),
         short_type=lambda t: (t or "").replace(" Fund", "").replace("Investment", "Inv"),
         n_funds=lambda row: len(json.loads(row["fund_ciks"] or "[]")),
+        traction_reasons=lambda m: "; ".join(traction.reason_phrase(x) for x in json.loads(m["reasons"])),
+        people_short=_people_short,
+        prior_firms=lambda m: ", ".join(json.loads(m["prior_firms"] or "[]")),
+        place=lambda m: ", ".join(p for p in (m["city"], m["state"] or m["country"]) if p),
     )
     app.jinja_env.globals.update(links=links)

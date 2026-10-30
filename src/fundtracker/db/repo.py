@@ -364,22 +364,41 @@ def emerging_managers(conn, today, min_age_months, max_age_months, fund_types=No
                       exclude_over_cap=True, max_funds=20):
     """Managers first seen between max_age and min_age before today, oldest bound included.
 
-    Ages are months, or a timedelta for a span in days. Only managers with a
-    Pooled Investment Fund are listed; fund_types (for example ["Hedge Fund"])
-    keeps those with a fund whose latest fund_type is one of them. The 3C
-    candidate rule that new uses is not applied: it let institutions' credit
-    and private equity series in (Session 7). Over-cap organisations and managers with
-    max_funds or more funds are left out when asked. Each row is a dict of
-    manager columns with "funds": its fund rows, oldest first, each with
-    latest_total_amount_sold and latest_n_investors from its latest filing.
+    Ages are months, or a timedelta for a span in days. The rest is as for
+    managers_first_seen.
+    """
+    return managers_first_seen(conn, age_cutoff(today, max_age_months), age_cutoff(today, min_age_months),
+                               fund_types, exclude_over_cap, max_funds)
+
+
+def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=True, max_funds=20,
+                        raised=None, states=(), prior_firm="any"):
+    """Managers first seen from oldest to newest (dates, both included).
+
+    Only managers with a Pooled Investment Fund are listed; fund_types (for
+    example ["Hedge Fund"]) keeps those with a fund whose latest fund_type is
+    one of them. The 3C candidate rule that new uses is not applied: it let
+    institutions' credit and private equity series in (Session 7). Over-cap
+    organisations and managers with max_funds or more funds are left out when
+    asked. raised is a key of RAISED_BANDS on the manager's total sold;
+    states are the state codes of its earliest fund (edgar_cik); prior_firm
+    is "with", "without" or "any". Each row is a dict of manager columns with
+    "funds": its fund rows, oldest first, each with latest_total_amount_sold
+    and latest_n_investors from its latest filing.
     """
     where = ["m.first_seen_date >= ?", "m.first_seen_date <= ?"]
-    params = [age_cutoff(today, max_age_months).isoformat(), age_cutoff(today, min_age_months).isoformat()]
+    params = [oldest.isoformat(), newest.isoformat()]
     if exclude_over_cap:
         where.append("coalesce(m.is_over_cap, 0) = 0")
     if max_funds is not None:
         where.append("m.n_funds < ?")
         params.append(max_funds)
+    _band("m.total_sold", raised, RAISED_BANDS, where, params)
+    if states:
+        where.append(f"(SELECT state FROM fund WHERE cik = m.edgar_cik) IN ({', '.join('?' * len(states))})")
+        params.extend(states)
+    if prior_firm in ("with", "without"):
+        where.append(f"coalesce(m.prior_firms, '[]') {'<>' if prior_firm == 'with' else '='} '[]'")
     pooled = "f.industry_group = 'Pooled Investment Fund'"
     if fund_types:
         pooled += f" AND f.fund_type IN ({', '.join('?' * len(fund_types))})"

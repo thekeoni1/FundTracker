@@ -406,8 +406,7 @@ def _write_new_csv(path, rows):
 
 EMERGING_MIN_AGE = "6m"
 EMERGING_MAX_AGE = "18m"
-# Managers with this many funds or more are not emerging.
-EMERGING_MAX_FUNDS = 20
+EMERGING_MAX_FUNDS = traction.EMERGING_MAX_FUNDS
 
 
 def parse_age(text):
@@ -458,15 +457,7 @@ def emerging_rows(conn, args, today):
     managers = repo.emerging_managers(
         conn, today, parse_age(args.min_age), parse_age(args.max_age),
         ["Hedge Fund"] if args.type == "hedge" else None, max_funds=EMERGING_MAX_FUNDS)
-    rows = []
-    for m in managers:
-        m["score"], reasons = traction.score_manager(dict(m, today=today, type=args.type))
-        m["reasons"] = json.dumps(reasons)
-        m["age_months"] = traction.age_months(m["first_seen_date"], today)
-        if m["score"] >= args.min_score:
-            rows.append(m)
-    rows.sort(key=lambda m: (-m["score"], -(m["total_sold"] or 0), m["first_seen_date"], m["manager_id"]))
-    return rows
+    return traction.score_managers(managers, today, args.type, args.min_score)
 
 
 def emerging_table(rows, total_width):

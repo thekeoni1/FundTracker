@@ -50,6 +50,8 @@ MANY_INVESTORS = 10
 RECENT_MONTHS = 6
 LARGE_FUNDS = 10
 HEDGE_FUND = "Hedge Fund"
+# Managers with this many funds or more are not emerging.
+EMERGING_MAX_FUNDS = 20
 
 
 def months_before(day, months):
@@ -121,6 +123,20 @@ def score_manager(facts):
 
     score = max(0, min(100, sum(r["points"] for r in reasons)))
     return score, reasons
+
+
+def score_managers(managers, today, fund_type, min_score=0):
+    """Score repo.emerging_managers rows in place (score, reasons as JSON, age_months) and
+    return those scoring min_score or more, best first, then most raised, then oldest."""
+    rows = []
+    for m in managers:
+        m["score"], reasons = score_manager(dict(m, today=today, type=fund_type))
+        m["reasons"] = json.dumps(reasons)
+        m["age_months"] = age_months(m["first_seen_date"], today)
+        if m["score"] >= min_score:
+            rows.append(m)
+    rows.sort(key=lambda m: (-m["score"], -(m["total_sold"] or 0), m["first_seen_date"], m["manager_id"]))
+    return rows
 
 
 def raised_band(sold):

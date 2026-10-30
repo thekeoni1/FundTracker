@@ -12,6 +12,7 @@
     <nav>
       <a href="{{ url_for('launches') }}" class="brand">FundTracker</a>
       <a href="{{ url_for('launches') }}"{% if request.endpoint == 'launches' %} aria-current="page"{% endif %}>Launches</a>
+      <a href="{{ url_for('emerging') }}"{% if request.endpoint == 'emerging' %} aria-current="page"{% endif %}>Emerging</a>
       {% block nav_extra %}{% endblock %}
     </nav>
     {% include "_status.html" %}

@@ -1,0 +1,32 @@
+<div class="summary">
+  <p><strong>{{ total | amount }} manager{{ "" if total == 1 else "s" }}</strong>{% if total > rows | length %}, showing the first {{ rows | length }}{% endif %}: {{ summary | join("; ") }}.</p>
+</div>
+<div class="table-wrap">
+<table>
+  <thead><tr>
+    <th>Score</th><th>Manager</th><th>First seen</th><th class="num">Age</th><th class="num">Funds</th>
+    <th class="num">Raised</th><th class="num">Investors</th><th>Latest filing</th><th>City and state</th>
+    <th>People</th><th>Prior firm</th><th>EDGAR</th>
+  </tr></thead>
+  <tbody>
+  {% for m in rows %}
+    <tr>
+      <td><span class="badge {{ m.score | score_class }}" title="{{ m | traction_reasons }}">{{ m.score }}</span></td>
+      <td><a href="/manager/{{ m.manager_id }}">{{ m.display_name or m.manager_id }}</a></td>
+      <td class="nowrap">{{ m.first_seen_date }}</td>
+      <td class="num">{{ m.age_months }}</td>
+      <td class="num">{{ m.n_funds }}</td>
+      <td class="num">{{ m.total_sold | amount }}</td>
+      <td class="num">{{ m.total_investors | amount }}</td>
+      <td class="nowrap">{{ m.latest_filing_date or "" }}</td>
+      <td>{{ m | place }}</td>
+      <td class="small">{{ m | people_short }}</td>
+      <td class="small">{{ m | prior_firms }}</td>
+      <td>{% if m.edgar_cik %}<a href="{{ links.edgar_company(m.edgar_cik) }}" target="_blank" rel="noopener">filings</a>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="12" class="empty">No managers match these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
