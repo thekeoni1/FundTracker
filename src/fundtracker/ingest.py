@@ -18,6 +18,7 @@ from fundtracker import config
 from fundtracker.db import repo
 from fundtracker.edgar import datasets
 from fundtracker.edgar import index as daily_index
+from fundtracker.edgar.client import is_not_found
 from fundtracker.edgar.datasets import Quarter
 from fundtracker.edgar.formd_xml import parse_formd
 
@@ -97,9 +98,11 @@ def daily(conn, client, day):
 
     day is a date or ISO string and is the ingest_log key. Each filing's
     filing_date is the index row's Date Filed, which can be earlier than day.
-    A 404 for the index (weekend, holiday) is logged as no_index. A filing
-    that fails to fetch or parse is logged and skipped; the day is ok if
-    anything loaded or nothing needed loading, and error otherwise.
+    A missing index (weekend, holiday) is logged as no_index; EDGAR answers
+    it with an AccessDenied 403, and a 404 is handled the same way in case
+    that changes. A filing that fails to fetch or parse is logged and
+    skipped; the day is ok if anything loaded or nothing needed loading, and
+    error otherwise.
     """
     if isinstance(day, str):
         day = date.fromisoformat(day)
@@ -109,7 +112,7 @@ def daily(conn, client, day):
 
     try:
         response = client.get(daily_index.form_index_url(day))
-        if response.status_code == 404:
+        if is_not_found(response):
             result.status = "no_index"
             _log_day(conn, key, "no_index", 0, started)
             return result

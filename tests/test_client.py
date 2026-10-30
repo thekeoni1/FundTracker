@@ -1,10 +1,11 @@
 import io
+from pathlib import Path
 
 import pytest
 import requests
 
 from fundtracker import config
-from fundtracker.edgar.client import EdgarClient, EdgarHTTPError, TokenBucket
+from fundtracker.edgar.client import EdgarClient, EdgarHTTPError, TokenBucket, is_not_found
 
 URL = "https://www.sec.gov/Archives/edgar/data/2158817/000215881726000001/index.json"
 AGENT = "Test Co tests@testco.com"
@@ -150,6 +151,39 @@ def test_connection_error_is_retried(client, monkeypatch):
 
     monkeypatch.setattr(requests.Session, "request", flaky)
     assert client.get(URL).status_code == 200
+
+
+MISSING_FILE_403 = (Path(__file__).parent / "fixtures" / "index" / "form.20261010.403.xml").read_bytes()
+
+
+def test_access_denied_403_for_a_missing_file_is_returned_without_retry(client, server, clock):
+    server.statuses = [403]
+    server.body = MISSING_FILE_403
+    response = client.get(URL)
+    assert response.status_code == 403
+    assert len(server.calls) == 1 and clock.sleeps == []
+    assert is_not_found(response)
+    with pytest.raises(requests.HTTPError):
+        client.get_cached(URL)
+    assert not client.is_cached(URL)
+
+
+def test_throttling_403_with_an_html_page_is_still_retried(client, server):
+    server.statuses = [403, 200]
+    server.body = b"<html><body>Your Request Originates from an Undeclared Automated Tool</body></html>"
+    assert client.get(URL).status_code == 200
+    assert len(server.calls) == 2
+
+
+def test_is_not_found_needs_the_access_denied_body():
+    assert is_not_found(make_response(404))
+    assert is_not_found(make_response(403, MISSING_FILE_403))
+    assert is_not_found(make_response(403, b"<Error><Code>AccessDenied</Code></Error>",
+                                      {"Content-Type": "application/xml"}))
+    assert not is_not_found(make_response(403, b"<html>Undeclared Automated Tool</html>",
+                                          {"Content-Type": "text/html"}))
+    assert not is_not_found(make_response(403, b"{}"))
+    assert not is_not_found(make_response(200, MISSING_FILE_403))
 
 
 def test_404_is_returned_without_retry(client, server):

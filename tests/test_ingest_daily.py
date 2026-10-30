@@ -24,8 +24,9 @@ ON_THE_DAY = {
 
 
 class FakeResponse:
-    def __init__(self, status, text=""):
+    def __init__(self, status, text="", content=b"", headers=None):
         self.status_code, self.text = status, text
+        self.content, self.headers = content, headers or {}
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -122,6 +123,23 @@ def test_weekend_404_is_no_index(conn):
     row = repo.ingest_status(conn, "daily", "2026-10-25")
     assert (row["status"], row["n_rows"]) == ("no_index", 0)
     assert client.xml_calls == []
+
+
+def test_access_denied_403_for_a_missing_index_is_no_index(conn):
+    """What EDGAR really sends for a weekend or holiday index."""
+    body = (FIXTURES / "index" / "form.20261010.403.xml").read_bytes()
+
+    class Edgar(FakeClient):
+        def get(self, url, stream=False):
+            self.index_calls.append(url)
+            return FakeResponse(403, body.decode(), body, {"Content-Type": "application/xml"})
+
+    client = Edgar({})
+    result = ingest.daily(conn, client, "2026-10-12")
+    assert result.status == "no_index"
+    row = repo.ingest_status(conn, "daily", "2026-10-12")
+    assert (row["status"], row["n_rows"], row["error"]) == ("no_index", 0, None)
+    assert len(client.index_calls) == 1 and client.xml_calls == []
 
 
 def test_server_error_on_the_index_is_logged(conn):

@@ -6,6 +6,11 @@ client spaces requests evenly at the configured rate (5 per second by
 default), retries throttling and server errors with exponential backoff, and
 can keep response bodies on disk so immutable archive files are fetched once.
 
+EDGAR answers a request for a file that does not exist, such as the daily
+index of a weekend or holiday, with 403 and an S3 style AccessDenied XML body,
+not 404. That 403 is returned at once like a 404; only a 403 without that body
+(SEC's HTML "Undeclared Automated Tool" page) is treated as throttling.
+
 Run as a module to fetch one URL:
 
     python -m fundtracker.edgar.client <url>
@@ -107,8 +112,9 @@ class EdgarClient:
     def get(self, url, stream=False):
         """GET url, retrying 403, 429, 5xx and connection errors.
 
-        Returns the requests.Response for any other status, including 404, so
-        callers can treat a missing daily index as data rather than failure.
+        Returns the requests.Response for any other status, including 404 and
+        the AccessDenied 403 EDGAR gives for a missing file (see is_not_found),
+        so callers can treat a missing daily index as data rather than failure.
         Raises EdgarHTTPError once max_tries attempts have all failed. With
         stream=True the body is not read yet; the caller iterates and closes it.
         """
@@ -121,7 +127,7 @@ class EdgarClient:
                 last_status, last_error = None, exc
                 retry_after = None
             else:
-                if response.status_code not in RETRY_STATUSES:
+                if response.status_code not in RETRY_STATUSES or _is_missing_object(response):
                     return response
                 last_status, last_error = response.status_code, None
                 retry_after = _retry_after_seconds(response)
@@ -167,6 +173,25 @@ class EdgarClient:
         tmp.write_bytes(body)
         tmp.replace(path)
         return body
+
+
+def is_not_found(response):
+    """True if response says the file does not exist: a 404, or EDGAR's AccessDenied 403."""
+    return response.status_code == 404 or _is_missing_object(response)
+
+
+def _is_missing_object(response):
+    """A 403 whose body is the S3 style <Error><Code>AccessDenied</Code> XML.
+
+    Matched on the body, never on the status alone, so SEC's throttling 403
+    (an HTML page) still goes down the retry path.
+    """
+    if response.status_code != 403:
+        return False
+    content_type = response.headers.get("Content-Type", "")
+    body = response.content[:2048].lstrip()
+    looks_xml = "xml" in content_type or body.startswith((b"<?xml", b"<Error>"))
+    return looks_xml and b"<Code>AccessDenied</Code>" in body
 
 
 def _retry_after_seconds(response):
