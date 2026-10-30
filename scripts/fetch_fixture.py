@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from fundtracker.edgar.client import EdgarClient
+from fundtracker.edgar.index import primary_doc_url
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "formd"
 README = FIXTURE_DIR / "README.md"
@@ -23,13 +24,6 @@ README_HEADER = (
     "Real primary_doc.xml files from EDGAR, saved by scripts/fetch_fixture.py. "
     "One line per fixture: accession, issuer CIK, and what it exercises.\n\n"
 )
-
-
-def primary_doc_url(cik, accession):
-    return (
-        f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/"
-        f"{accession.replace('-', '')}/primary_doc.xml"
-    )
 
 
 def main(argv=None):
