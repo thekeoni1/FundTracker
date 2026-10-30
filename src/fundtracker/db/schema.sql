@@ -258,3 +258,11 @@ CREATE INDEX IF NOT EXISTS launch_window_start ON launch(window_start);
 CREATE INDEX IF NOT EXISTS launch_manager_id ON launch(manager_id);
 -- The Emerging page selects managers by first_seen_date (Session 8).
 CREATE INDEX IF NOT EXISTS manager_first_seen_date ON manager(first_seen_date);
+
+-- What each manager looked like at the last fundtracker digest (digest.py).
+CREATE TABLE IF NOT EXISTS digest_state (
+    manager_id   TEXT PRIMARY KEY,
+    total_sold   INTEGER,
+    n_funds      INTEGER NOT NULL,
+    digest_date  TEXT NOT NULL
+);
