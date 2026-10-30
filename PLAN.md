@@ -128,7 +128,7 @@ FundTracker/
 
 `filing(filing_date)`, `filing(cik)`, `offering(fund_type, is_amendment)`, `related_person(name_norm)`, `signature(signer_norm)`, `issuer(cik)`, `issuer(phone)`, `issuer(zip, street1)`.
 
-Expected size after full backfill: roughly 1 million filings, 3 million related persons, a few hundred MB in SQLite. Comfortable.
+Measured size after the full backfill (2026-10-29): 778,966 filings, 2,987,521 related persons, 1.69 GB in SQLite, loaded in 11 minutes. The original estimate of a few hundred MB was low because clarification text and addresses are stored verbatim. Still comfortable for a local app; if it ever matters, the long free-text columns can move to a side table.
 
 ## 7. Core logic
 

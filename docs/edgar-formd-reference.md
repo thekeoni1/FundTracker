@@ -129,11 +129,18 @@ Availability: the day's file appears after the nightly index build (around 22:00
 
 Page: `https://www.sec.gov/data-research/sec-markets-data/form-d-data-sets`
 
-Zip URL patterns (two prefixes in use; scrape the page rather than hard-coding):
+Zip URL patterns (two prefixes and two file-name shapes in use; scrape the page rather than hard-coding):
 - `https://www.sec.gov/files/datastandardsinnovation/data/form-d-data-sets/2026q3_d.zip` (2026 Q2, Q3)
 - `https://www.sec.gov/files/structureddata/data/form-d-data-sets/2026q1_d.zip` (2026 Q1 and earlier)
+- `{yyyy}q{n}_d_0.zip` for 2008 Q2 through 2013 Q4; the link regex must accept an optional `_N` suffix or it misses 22 quarters.
 
-Published quarterly, a few days after quarter end (the 2026 Q3 zip was built 2026-10-02). Filings after 17:30 ET on the quarter's last business day roll into the next quarter. Earliest quarter available: **verify** on the page (electronic Form D became mandatory 2009-03-16, so expect 2008 or 2009 onward).
+Published quarterly, a few days after quarter end (the 2026 Q3 zip was built 2026-10-02). Filings after 17:30 ET on the quarter's last business day roll into the next quarter. Earliest quarter: 2008 Q1. As of 2026-10-29 there are 75 quarters, 778,966 filings in total (confirmed by WP2's full backfill).
+
+Older-quarter differences found by WP2:
+- 2008 Q2 has no RECIPIENTS.tsv. Treat a missing child table as zero rows; only FORMDSUBMISSION and OFFERING are required.
+- Older quarters write FILING_DATE as an ISO timestamp (`2010-06-15 12:23:18`) rather than `DD-MON-YYYY`.
+- The data set sometimes copies STREET1 into an otherwise empty STREET2 (5 of 6 rows checked against their XML). Dropping a street2 that repeats street1 makes both sources agree.
+- Recipient state lists are stored sorted in the TSV. Sort and de-duplicate them from the XML too.
 
 Zip contents (2026q3_d.zip: 3.5 MB compressed, 21 MB raw), all tab-separated UTF-8 with an uppercase header row, inside a folder `2026Q3_d/`:
 
