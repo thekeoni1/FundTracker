@@ -341,7 +341,7 @@ def test_only_pooled_funds_get_launches(conn):
 
 def dump(conn):
     return {t: conn.execute(f"SELECT * FROM {t} ORDER BY 1, 2").fetchall()
-            for t in ("fund", "link_key", "manager", "fund_manager", "launch")}
+            for t in ("fund", "link_key", "manager", "fund_manager", "launch", "manager_adviser")}
 
 
 def test_run_twice_gives_identical_tables_and_keeps_review(conn):

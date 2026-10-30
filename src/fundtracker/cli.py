@@ -281,6 +281,9 @@ def cmd_derive(conn, args):
     print(f"{counts['fund']:,} funds, {counts['manager']:,} managers, {counts['launch']:,} launches, "
           f"{counts['link_key']:,} link keys ({over} over the cap), "
           f"in {time.monotonic() - started:.0f}s")
+    tiers = counts["manager_adviser"]
+    print(f"advisers: {tiers['high']:,} managers linked high, {tiers['medium']:,} medium, "
+          f"{tiers['none']:,} with candidates only")
     return 0
 
 

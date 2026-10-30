@@ -566,6 +566,147 @@ def _people(conn):
         yield json.dumps(list(people.values())), current
 
 
+# Form ADV advisers (PLAN.md WP7): which registered or exempt adviser runs a manager.
+
+# Phone and address keys held by more advisers than this are shared office
+# buildings and service providers, and are ignored.
+ADVISER_KEY_CAP = 20
+# Removed from adviser and manager names before comparing, on top of
+# normalize.ENTITY_SUFFIX_TOKENS: Form ADV names carry these more often.
+ADV_SUFFIX_TOKENS = normalize.ENTITY_SUFFIX_TOKENS | frozenset(
+    "LLP PLLC LC CO CORP CORPORATION COMPANY LIMITED".split())
+# Phones compare on their last this many digits, so +1 and 001 prefixes do not matter.
+ADV_PHONE_DIGITS = 10
+# The hedge-fund tie-break: phone and address together point to at least
+# TIEBREAK_MIN and at most TIEBREAK_MAX advisers, exactly one of which has hedge funds.
+TIEBREAK_MIN, TIEBREAK_MAX = 2, 3
+HIGH, MEDIUM, NONE = "high", "medium", "none"
+LINKED = (HIGH, MEDIUM)
+
+
+def adviser_stem(name):
+    """A firm name for adviser matching: normalised, ADV_SUFFIX_TOKENS removed, None when
+    the rest is too short or generic to identify anyone (derive._usable_stem)."""
+    stem = " ".join(t for t in norm_text(name).split() if t not in ADV_SUFFIX_TOKENS)
+    return stem if _usable_stem(stem) else None
+
+
+def _adviser_keys(conn):
+    """(kind, key, crd) for every adviser: name stems of both names, the phone's last
+    ADV_PHONE_DIGITS digits, and the address as address_key gives it, also with a
+    ZIP+4 cut to five digits. Phone and address keys over ADVISER_KEY_CAP are left out."""
+    keys = set()
+    for r in conn.execute("SELECT crd, name, legal_name, phone, street1, postal_code FROM adviser"):
+        for name in (r["name"], r["legal_name"]):
+            stem = adviser_stem(name)
+            if stem:
+                keys.add(("name", stem, r["crd"]))
+        phone = re.sub(r"\D", "", r["phone"] or "")
+        if len(phone) >= MIN_PHONE_DIGITS:
+            keys.add(("phone", phone[-ADV_PHONE_DIGITS:], r["crd"]))
+        postal = (r["postal_code"] or "").strip()
+        for code in {postal, postal[:5] if re.fullmatch(r"\d{5}-\d{4}", postal) else postal}:
+            address = address_key(r["street1"], code)
+            if address:
+                keys.add(("address", address, r["crd"]))
+    holders = defaultdict(int)
+    for kind, key, _crd in keys:
+        holders[kind, key] += 1
+    return sorted(k for k in keys if k[0] == "name" or holders[k[0], k[1]] <= ADVISER_KEY_CAP)
+
+
+def build_manager_advisers(conn):
+    """Fill manager_adviser: each manager's adviser and how sure the link is.
+
+    Run after build_manager_stats. A manager's keys are its display name and
+    the entity stems of its funds' related persons (compared through
+    adviser_stem), and its funds' phone and address keys under the Form D
+    cap (phones on their last ADV_PHONE_DIGITS digits). Against the adviser
+    keys from _adviser_keys, the tiers are:
+
+      high    one adviser by name (several narrowed to one by phone or
+              address), or else one adviser by phone
+      medium  one adviser by address, or else two or three by phone and
+              address of which exactly one has hedge funds
+      none    anything else; the candidates are kept in evidence
+
+    Managers with no candidate get no row. Returns {tier: managers}.
+    """
+    conn.execute("DELETE FROM manager_adviser")
+    for table in ("adv_key", "manager_key"):
+        conn.execute(f"DROP TABLE IF EXISTS temp.{table}")
+    conn.execute("CREATE TEMP TABLE adv_key (kind TEXT, key TEXT, crd TEXT)")
+    conn.executemany("INSERT INTO temp.adv_key VALUES (?, ?, ?)", _adviser_keys(conn))
+    conn.execute("CREATE INDEX temp.adv_key_kind_key ON adv_key(kind, key)")
+    adviser_names = {r[0] for r in conn.execute("SELECT key FROM temp.adv_key WHERE kind = 'name'")}
+    # Each manager's keys, built first so the join below probes the adviser keys by
+    # index: comparing through a function inside the join scanned every pair.
+    conn.execute("CREATE TEMP TABLE manager_key (manager_id TEXT, kind TEXT, key TEXT)")
+    names = conn.execute(
+        """
+        SELECT manager_id, display_name FROM manager
+        UNION
+        SELECT fm.manager_id, lk.key FROM link_key lk JOIN fund_manager fm USING (cik)
+        WHERE lk.kind = 'entity_stem' AND lk.over_cap = 0
+        """)
+    conn.executemany("INSERT INTO temp.manager_key VALUES (?, 'name', ?)",
+                     ((m, stem) for m, name in names if (stem := adviser_stem(name)) in adviser_names))
+    conn.execute(
+        f"""
+        INSERT INTO temp.manager_key
+        SELECT fm.manager_id, lk.kind,
+               CASE lk.kind WHEN 'phone' THEN substr(lk.key, -{ADV_PHONE_DIGITS}) ELSE lk.key END
+        FROM link_key lk JOIN fund_manager fm USING (cik)
+        WHERE lk.kind IN ('phone', 'address') AND lk.over_cap = 0
+        """)
+    hedge = {r[0] for r in conn.execute("SELECT crd FROM adviser WHERE any_hedge_funds = 1")}
+    hits = conn.execute(
+        """
+        SELECT DISTINCT mk.manager_id, mk.kind, mk.key, ak.crd
+        FROM temp.manager_key mk CROSS JOIN temp.adv_key ak ON ak.kind = mk.kind AND ak.key = mk.key
+        ORDER BY mk.manager_id, mk.kind, mk.key, ak.crd
+        """)
+    tiers = dict.fromkeys((HIGH, MEDIUM, NONE), 0)
+
+    def rows():
+        for manager_id, group in _groups(hits):
+            row = _adviser_link(manager_id, [(r["kind"], r["key"], r["crd"]) for r in group], hedge)
+            tiers[row[2]] += 1
+            yield row
+
+    conn.executemany("INSERT INTO manager_adviser VALUES (?, ?, ?, ?, ?)", rows())
+    for table in ("adv_key", "manager_key"):
+        conn.execute(f"DROP TABLE temp.{table}")
+    log.info("manager advisers: %(high)d high, %(medium)d medium, %(none)d candidates only", tiers)
+    return tiers
+
+
+def _adviser_link(manager_id, found, hedge):
+    """The manager_adviser row for one manager's (kind, key, crd) hits."""
+    by_kind = defaultdict(set)
+    for kind, _key, crd in found:
+        by_kind[kind].add(crd)
+    names, phones, addresses = by_kind["name"], by_kind["phone"], by_kind["address"]
+    crd, confidence, extra = None, NONE, []
+    narrowed = names & (phones | addresses)
+    shared = phones | addresses
+    hedgers = sorted(shared & hedge)
+    if len(names) == 1:
+        crd, confidence = next(iter(names)), HIGH
+    elif len(names) > 1 and len(narrowed) == 1:
+        crd, confidence = next(iter(narrowed)), HIGH
+    elif len(phones) == 1:
+        crd, confidence = next(iter(phones)), HIGH
+    elif len(addresses) == 1:
+        crd, confidence = next(iter(addresses)), MEDIUM
+    elif TIEBREAK_MIN <= len(shared) <= TIEBREAK_MAX and len(hedgers) == 1:
+        crd, confidence, extra = hedgers[0], MEDIUM, ["hedge_tiebreak"]
+    kinds = [k for k in ("name", "phone", "address") if crd in by_kind[k]] + extra
+    evidence = {"keys": sorted({f"{kind}:{key}" for kind, key, c in found if crd is None or c == crd}),
+                "candidates": sorted({c for _k, _key, c in found}, key=lambda c: (len(c), c))}
+    return manager_id, crd, confidence, json.dumps(kinds), json.dumps(evidence)
+
+
 # Launches: pooled funds first filed within LAUNCH_WINDOW_DAYS of each other
 # that share a manager, a signer, an over-cap entity or a fund family stem.
 
@@ -825,6 +966,7 @@ def run(conn, today=None):
         counts["link_key"], counts["over_cap"] = keys["rows"], keys["over_cap"]
         counts["manager"] = build_managers(conn)
         build_manager_stats(conn)
+        counts["manager_adviser"] = build_manager_advisers(conn)
         counts["fund_manager"] = counts["fund"]
         counts["launch"] = build_launches(conn, score=launch_scorer(conn))
         counts["search_index"] = repo.rebuild_search_index(conn)
