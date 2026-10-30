@@ -19,11 +19,11 @@ def reset_ingest_logger():
 def db(tmp_path, monkeypatch):
     monkeypatch.setattr(client_module, "EdgarClient", lambda: FakeClient())
     monkeypatch.setattr(cli.config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(cli.config, "DATASETS_DIR", tmp_path / "datasets")
     return str(tmp_path / "cli.db")
 
 
 def test_backfill_then_stats(db, capsys, monkeypatch, tmp_path):
-    monkeypatch.setattr("fundtracker.ingest.config.DATA_DIR", tmp_path)
     assert cli.main(["--db", db, "backfill"]) == 0
     out = capsys.readouterr().out
     assert "2 quarters loaded (402 filings), 0 already loaded, 0 failed" in out

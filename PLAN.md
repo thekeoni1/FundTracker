@@ -102,7 +102,10 @@ FundTracker/
   tests/
     fixtures/        a dozen real primary_doc.xml files + a trimmed quarterly zip
   data/              gitignored: fundtracker.db, raw/{accession}.xml, datasets/*.zip
+    exports/         gitignored: the workbooks and CSVs new and emerging write
 ```
+
+Where the data lives: the database, `raw/` and `datasets/` sit under `DATA_DIR`, which is `data/` in the project unless `FUNDTRACKER_DATA_DIR` in `.env` points elsewhere. On the user's machine it is `C:\Users\theke\FundTrackerData`, outside OneDrive, because OneDrive re-uploaded the 1.7 GB database after every run. Exports stay in the project at `data/exports/` (`EXPORT_DIR`, overridable with `FUNDTRACKER_EXPORT_DIR`) so the user finds the workbooks next to the code.
 
 ## 6. Data model
 

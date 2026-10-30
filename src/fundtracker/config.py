@@ -48,9 +48,15 @@ def _resolve(path_text):
     return path if path.is_absolute() else PROJECT_ROOT / path
 
 
+# The database and the caches live under DATA_DIR. FUNDTRACKER_DATA_DIR moves
+# them, for example out of a synced folder such as OneDrive.
 DATA_DIR = _resolve(_setting("FUNDTRACKER_DATA_DIR", "data"))
 RAW_DIR = DATA_DIR / "raw"
+DATASETS_DIR = DATA_DIR / "datasets"
 DB_PATH = DATA_DIR / "fundtracker.db"
+# Workbooks and CSVs are for the user to open, so they stay in the project
+# whatever DATA_DIR is, unless FUNDTRACKER_EXPORT_DIR says otherwise.
+EXPORT_DIR = _resolve(_setting("FUNDTRACKER_EXPORT_DIR", "data/exports"))
 RATE_LIMIT_PER_SEC = float(_setting("FUNDTRACKER_RATE_LIMIT_PER_SEC", "5"))
 
 

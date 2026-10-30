@@ -344,7 +344,7 @@ def launch_table(rows, total_width):
 
 def default_xlsx_path(fund_type, since_text, today=None):
     stamp = (today or date.today()).strftime("%Y%m%d")
-    return Path(config.DATA_DIR) / "exports" / f"new-{fund_type}-{since_text}-{stamp}.xlsx"
+    return Path(config.EXPORT_DIR) / f"new-{fund_type}-{since_text}-{stamp}.xlsx"
 
 
 def cmd_new(conn, args):
@@ -480,7 +480,7 @@ def emerging_table(rows, total_width):
 
 def default_emerging_path(fund_type, min_age, max_age, today=None):
     stamp = (today or date.today()).strftime("%Y%m%d")
-    return Path(config.DATA_DIR) / "exports" / f"emerging-{fund_type}-{min_age}-{max_age}-{stamp}.xlsx"
+    return Path(config.EXPORT_DIR) / f"emerging-{fund_type}-{min_age}-{max_age}-{stamp}.xlsx"
 
 
 def cmd_emerging(conn, args):

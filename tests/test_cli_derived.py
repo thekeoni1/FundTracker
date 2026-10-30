@@ -71,7 +71,7 @@ def test_new_lists_hedge_launches_best_first(derived, capsys, columns):
 
 
 def test_new_defaults_to_hedge_and_writes_the_workbook(derived, capsys, columns, monkeypatch, tmp_path):
-    monkeypatch.setattr(cli.config, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(cli.config, "EXPORT_DIR", tmp_path / "data" / "exports")
     assert cli.main(["--db", derived, "new", "--since", "2026-10-01", "--xlsx"]) == 0
     out = capsys.readouterr().out
     expected = cli.default_xlsx_path("hedge", "2026-10-01")

@@ -151,7 +151,7 @@ def test_emerging_before_derive_says_so(tmp_path, capsys):
 def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
     from openpyxl import load_workbook
 
-    monkeypatch.setattr(cli.config, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(cli.config, "EXPORT_DIR", tmp_path / "data" / "exports")
     assert cli.main(["--db", world, "emerging", "--xlsx"]) == 0
     path = cli.default_emerging_path("hedge", "6m", "18m")
     assert capsys.readouterr().out.splitlines()[-1] == f"wrote {path}"

@@ -49,7 +49,7 @@ def backfill(conn, client, from_quarter=None, to_quarter=None, dest_dir=None):
     Returns a list of (quarter key, status, rows loaded) for the quarters
     looked at; skipped quarters report status "skipped".
     """
-    dest_dir = dest_dir if dest_dir is not None else config.DATA_DIR / "datasets"
+    dest_dir = dest_dir if dest_dir is not None else config.DATASETS_DIR
     low = _bound(from_quarter)
     high = _bound(to_quarter)
     results = []
