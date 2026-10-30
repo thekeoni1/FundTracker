@@ -65,12 +65,14 @@ def test_backfill_twice_second_run_is_a_no_op(conn, tmp_path):
     assert first == [("2010q2", "ok", 201), ("2015q2", "ok", 201)]
     after_first = counts(conn)
     assert after_first["filing"] == 402
+    log_after_first = [tuple(r) for r in conn.execute("SELECT * FROM ingest_log ORDER BY key")]
     zip_fetches = [u for u in client.calls if u.endswith(".zip")]
     assert len(zip_fetches) == 2
 
     second = ingest.backfill(conn, client, dest_dir=tmp_path / "zips")
     assert second == [("2010q2", "skipped", 0), ("2015q2", "skipped", 0)]
     assert counts(conn) == after_first
+    assert [tuple(r) for r in conn.execute("SELECT * FROM ingest_log ORDER BY key")] == log_after_first
     assert [u for u in client.calls if u.endswith(".zip")] == zip_fetches
 
     rows = conn.execute("SELECT source, key, status, n_rows, started_at, finished_at, error "

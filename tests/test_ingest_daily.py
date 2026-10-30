@@ -155,3 +155,70 @@ def test_filing_date_is_the_rows_date_filed_not_the_index_date(conn):
     ingest.daily(conn, client, DAY)
     assert repo.get_filing(conn, "0002154220-26-000001").filing.filing_date == "2026-10-26"
     assert repo.ingest_status(conn, "daily", "2026-10-27")["status"] == "ok"
+
+
+# ingest_log rows are totals across runs: a rerun must not erase earlier counts.
+
+@pytest.fixture
+def clock(monkeypatch):
+    """Make ingest._now return a new timestamp on every call."""
+    ticks = iter(f"2026-10-30T00:00:{s:02d}+00:00" for s in range(60))
+    monkeypatch.setattr(ingest, "_now", lambda: next(ticks))
+
+
+def log_row(conn, day="2026-10-27"):
+    return repo.ingest_status(conn, "daily", day)
+
+
+def test_a_rerun_that_loads_nothing_leaves_the_row_identical(conn, clock):
+    client = FakeClient({DAY: fixture_rows_only(INDEX_TEXT)})
+    ingest.daily(conn, client, DAY)
+    first = log_row(conn)
+    assert (first["status"], first["n_rows"]) == ("ok", 8)
+    ingest.daily(conn, client, DAY)
+    assert log_row(conn) == first
+
+
+def test_a_rerun_that_loads_more_adds_to_the_count_and_keeps_started_at(conn, clock):
+    full = fixture_rows_only(INDEX_TEXT)
+    lines = full.splitlines()
+    early = "\n".join(l for l in lines if "0002124823-26-000002" not in l
+                      and "0001741616-26-000005" not in l) + "\n"
+    ingest.daily(conn, FakeClient({DAY: early}), DAY)
+    first = log_row(conn)
+    assert first["n_rows"] == 6
+
+    # Two filings appear in the index after the first fetch.
+    again = ingest.daily(conn, FakeClient({DAY: full}), DAY)
+    assert again.loaded == 2
+    second = log_row(conn)
+    assert (second["status"], second["n_rows"]) == ("ok", 8)
+    assert second["started_at"] == first["started_at"]
+    assert second["finished_at"] > first["finished_at"]
+
+
+def test_a_failed_rerun_keeps_the_earlier_ok_row(conn, clock):
+    class Broken(FakeClient):
+        def get(self, url, stream=False):
+            return FakeResponse(500)
+
+    ingest.daily(conn, FakeClient({DAY: fixture_rows_only(INDEX_TEXT)}), DAY)
+    first = log_row(conn)
+    assert ingest.daily(conn, Broken({}), DAY).status == "error"
+    assert log_row(conn) == first
+
+
+def test_a_no_index_rerun_leaves_the_row_and_an_error_row_is_replaced(conn, clock):
+    ingest.daily(conn, FakeClient({}), "2026-10-25")
+    weekend = log_row(conn, "2026-10-25")
+    ingest.daily(conn, FakeClient({}), "2026-10-25")
+    assert log_row(conn, "2026-10-25") == weekend
+
+    failing = FakeClient({DAY: INDEX_TEXT})
+    failing.xml.clear()
+    ingest.daily(conn, failing, DAY)
+    failed = log_row(conn)
+    assert (failed["status"], failed["n_rows"]) == ("error", 0)
+    ingest.daily(conn, FakeClient({DAY: fixture_rows_only(INDEX_TEXT)}), DAY)
+    row = log_row(conn)
+    assert (row["status"], row["n_rows"], row["error"]) == ("ok", 8, None)

@@ -111,18 +111,14 @@ def daily(conn, client, day):
         response = client.get(daily_index.form_index_url(day))
         if response.status_code == 404:
             result.status = "no_index"
-            with conn:
-                repo.log_ingest(conn, DAILY_SOURCE, key, "no_index", n_rows=0,
-                                started_at=started, finished_at=_now())
+            _log_day(conn, key, "no_index", 0, started)
             return result
         response.raise_for_status()
         rows = daily_index.formd_rows(daily_index.parse_form_index(response.text))
     except Exception as exc:
         result.status = "error"
         result.errors.append((None, f"{type(exc).__name__}: {exc}"))
-        with conn:
-            repo.log_ingest(conn, DAILY_SOURCE, key, "error", n_rows=0, started_at=started,
-                            finished_at=_now(), error=f"index: {type(exc).__name__}: {exc}")
+        _log_day(conn, key, "error", 0, started, f"index: {type(exc).__name__}: {exc}")
         return result
 
     result.listed = len(rows)
@@ -148,15 +144,37 @@ def daily(conn, client, day):
         shown = "; ".join(f"{a} {m}" for a, m in result.errors[:5])
         more = f"; and {len(result.errors) - 5} more" if len(result.errors) > 5 else ""
         note = f"{len(result.errors)} of {wanted} filings failed: {shown}{more}"
-    with conn:
-        repo.log_ingest(conn, DAILY_SOURCE, key, result.status, n_rows=result.loaded,
-                        started_at=started, finished_at=_now(), error=note)
+    _log_day(conn, key, result.status, result.loaded, started, note)
     log.info("%s: %d listed, %d already stored, %d loaded, %d failed", key, result.listed,
              result.already_present, result.loaded, len(result.errors))
     return result
 
 
 DONE_STATUSES = ("ok", "no_index")
+
+
+def _log_day(conn, key, status, loaded, started, error=None):
+    """Write the ingest_log row for one day as a total across all runs.
+
+    A rerun that loads nothing leaves an ok or no_index row untouched, and a
+    failed rerun is reported in the log output only, so a harmless rerun
+    cannot erase what an earlier run recorded. A rerun that loads something
+    adds to n_rows and keeps the first run's started_at. An error row is
+    replaced by the next run's outcome.
+    """
+    with conn:
+        prior = repo.ingest_status(conn, DAILY_SOURCE, key)
+        if prior and prior["status"] in DONE_STATUSES and loaded == 0:
+            if status == "error":
+                log.warning("%s: rerun failed, keeping the earlier %s row: %s",
+                            key, prior["status"], error)
+            return
+        n_rows = loaded
+        if prior:
+            n_rows += prior["n_rows"] or 0
+            started = prior["started_at"] or started
+        repo.log_ingest(conn, DAILY_SOURCE, key, status, n_rows=n_rows,
+                        started_at=started, finished_at=_now(), error=error)
 
 
 def catchup_start(conn, today=None):
