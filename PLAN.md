@@ -196,14 +196,14 @@ fundtracker backfill [--from 2009q1]
 fundtracker ingest daily [--date 2026-10-28]
 fundtracker ingest catchup
 fundtracker derive
-fundtracker new [--since 7d] [--min-score 50] [--type hedge|all] [--csv out.csv]
+fundtracker new [--since 7d] [--min-score 50] [--type hedge|all] [--xlsx [out.xlsx]] [--csv out.csv]   (default type: hedge)
 fundtracker fund <cik>                timeline of filings, related persons, EDGAR links
 fundtracker manager <id>
 fundtracker search "<name>"           local search, with --edgar to hit full-text search
 fundtracker serve                     start the web UI on localhost:8000
 ```
 
-`new` prints a table: filing date, launch name, manager, fund type, exemptions, min investment, offering amount, state, score, top two reasons, EDGAR link. `--csv` writes the same columns plus the full field set.
+`new` prints a readable table: date, score, launch name, manager, fund type, Rule 506 variant, min investment, state, with the reason phrases on a second line. `--xlsx` writes a workbook (sheets Launches, Funds, Reasons, About) with real dates, formatted amounts, EDGAR hyperlinks and a colour scale on score; this is the user's daily reading format. `--csv` writes the flat field set.
 
 ### Web UI (phase 2)
 
@@ -269,6 +269,16 @@ Deliver: `classify.py`, `newness.py`, `ingest.derive` building `fund`, `manager`
 Done when: unit tests cover the candidate rule, the stem and key normalisers, master/feeder clustering, and the score table; `fundtracker new --since 30d` over real data lists launches with Axiaris near the top and a known large multi-fund manager near the bottom; running `derive` twice yields identical derived tables; the user reviews a week of output and confirms the ranking is sensible (this review is the acceptance gate; expect one tuning round).
 
 Brief: "Implement WP4 from PLAN.md: the derived fund/manager/launch tables, hedge-fund classification, newness scoring with the weights in section 7.4, and the `new`, `fund`, `manager`, `search` CLI commands with CSV export."
+
+### WP4b: Tuning round and Excel export
+
+Depends on: WP4 and the user's first review (2026-10-30).
+
+Deliver: readable entity display names (reversed encodings repaired); over-cap entity keys treated as established organisations in scoring; wider launch folding (shared signer, shared over-cap entity key, fund family stem, within 30 days); `export.py` writing an Excel workbook with openpyxl; `new` defaulting to hedge funds with `--xlsx`.
+
+Done when: Axiaris stays first over 30 days, AQR's series funds fold into one low-scoring launch, no top-20 launch touches an over-cap entity key, and the user accepts the hedge workbook for the last week.
+
+Brief: "Implement WP4b from docs/SESSIONS.md Session 5: the tuning round the user asked for after reviewing WP4 output, plus the Excel export."
 
 ### WP5: Web UI
 
