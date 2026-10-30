@@ -7,12 +7,13 @@ module parses filters, calls repo and renders templates. Nothing here
 writes to the database or stores per-user state.
 """
 
+import io
 import json
-from datetime import date
+from datetime import date, datetime
 
-from flask import Flask, abort, g, render_template, request, url_for
+from flask import Flask, abort, g, render_template, request, send_file, url_for
 
-from fundtracker import classify, config, newness, traction
+from fundtracker import classify, config, export, newness, traction
 from fundtracker.db import repo
 from fundtracker.web import filters, links
 
@@ -76,6 +77,31 @@ def create_app(connect=None, today=None):
     def emerging_table():
         return _partial("_emerging_table.html", "emerging", emerging_context())
 
+    @app.get("/launches/export.xlsx")
+    def launches_export():
+        f = filters.launch_filters(request.args, today())
+        rows = launch_rows(db(), f)
+        meta = {"generated_at": datetime.now(), "since": f["since"].isoformat(), "type": f["type"],
+                "min_score": f["min_score"], "last_daily": repo.last_ingest_key(db(), "daily"),
+                "filters": filters.describe_launches(f)}
+        out = io.BytesIO()
+        export.write_workbook(out, rows, repo.funds_for_launches(db(), rows), meta)
+        return _xlsx(out, f"launches-{f['type']}-{f['since']}-to-{f['until']}-{today():%Y%m%d}.xlsx")
+
+    @app.get("/emerging/export.xlsx")
+    def emerging_export():
+        f = filters.emerging_filters(request.args, today())
+        rows = emerging_rows(db(), f, today())
+        oldest, newest = f["first_seen_from"], f["first_seen_to"]
+        meta = {"generated_at": datetime.now(), "today": today(), "oldest": oldest, "newest": newest,
+                "min_age": f"{(today() - newest).days}d", "max_age": f"{(today() - oldest).days}d",
+                "type": f["type"], "min_score": f["min_score"], "max_funds": traction.EMERGING_MAX_FUNDS,
+                "last_daily": repo.last_ingest_key(db(), "daily"), "filters": filters.describe_emerging(f)}
+        funds = [dict(fund, manager_score=m["score"]) for m in rows for fund in m["funds"]]
+        out = io.BytesIO()
+        export.write_emerging_workbook(out, rows, funds, meta)
+        return _xlsx(out, f"emerging-{f['type']}-{oldest}-to-{newest}-{today():%Y%m%d}.xlsx")
+
     @app.get("/launch/<launch_id>")
     def launch(launch_id):
         row = repo.get_launch(db(), launch_id) or abort(404)
@@ -131,6 +157,14 @@ def emerging_rows(conn, f, today):
     elif f["sort"] == "first_seen":
         rows.sort(key=lambda m: m["first_seen_date"], reverse=True)
     return rows
+
+
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _xlsx(buffer, filename):
+    buffer.seek(0)
+    return send_file(buffer, mimetype=XLSX_TYPE, as_attachment=True, download_name=filename)
 
 
 def _query():

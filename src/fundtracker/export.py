@@ -82,7 +82,8 @@ def write_workbook(path, launches, funds, meta):
 
     launches are repo.launches_since rows, best first; funds are
     repo.funds_for_launches rows for them; meta is a dict with generated_at
-    (a datetime), since, type, min_score and last_daily (an ISO date or None).
+    (a datetime), since, type, min_score and last_daily (an ISO date or None),
+    and from the site, filters (phrases for the About sheet).
     """
     funds_of = {}
     for f in funds:
@@ -106,6 +107,7 @@ def write_workbook(path, launches, funds, meta):
         ("Launches first filed since", _date(meta["since"])),
         ("Fund type", "Hedge Fund only" if meta["type"] == "hedge" else "every pooled fund type"),
         ("Minimum score", meta["min_score"]),
+        *_filters_row(meta),
         ("Launches", len(launches)),
         ("Funds in them", len(funds)),
         ("Last daily index loaded", _date(meta.get("last_daily"))),
@@ -162,7 +164,7 @@ def write_emerging_workbook(path, managers, funds, meta):
     plus score, reasons as JSON and age_months), best first; funds are their
     funds with manager_score; meta is a dict with generated_at, today,
     oldest, newest (dates), min_age, max_age, type, min_score, max_funds and
-    last_daily.
+    last_daily, and from the site, filters.
     """
     names = {m["manager_id"]: m["display_name"] for m in managers}
     fund_names = {f["cik"]: f["name"] for f in funds}
@@ -194,6 +196,7 @@ def write_emerging_workbook(path, managers, funds, meta):
         ("Fund type", "managers with a Hedge Fund vehicle" if meta["type"] == "hedge"
          else "every pooled fund type"),
         ("Minimum score", meta["min_score"]),
+        *_filters_row(meta),
         ("Left out", f"over-cap organisations and managers with {meta['max_funds']} or more funds"),
         ("Managers", len(managers)),
         ("Funds of those managers", len(funds)),
@@ -209,6 +212,11 @@ def write_emerging_workbook(path, managers, funds, meta):
         ("Funds that count as large", traction.LARGE_FUNDS),
     ], traction.TRACTION_WEIGHTS, traction.TRACTION_LABELS)
     wb.save(path)
+
+
+def _filters_row(meta):
+    """The site's filters as one About row, when the workbook came from a page."""
+    return [("Site filters", "; ".join(meta["filters"]))] if meta.get("filters") else []
 
 
 def _table_sheet(ws, columns, rows, links=None, score=True):

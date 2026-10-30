@@ -1,5 +1,6 @@
 <div class="summary">
-  <p><strong>{{ total | amount }} manager{{ "" if total == 1 else "s" }}</strong>{% if total > rows | length %}, showing the first {{ rows | length }}{% endif %}: {{ summary | join("; ") }}.</p>
+  <p><strong>{{ total | amount }} manager{{ "" if total == 1 else "s" }}</strong>{% if total > rows | length %}, showing the first {{ rows | length }} (the export has all){% endif %}: {{ summary | join("; ") }}.</p>
+  <a class="button" href="{{ url_for('emerging_export') }}{% if query %}?{{ query }}{% endif %}" download>Export to Excel</a>
 </div>
 <div class="table-wrap">
 <table>
