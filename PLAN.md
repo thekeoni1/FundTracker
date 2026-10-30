@@ -78,31 +78,38 @@ Single Python process, SQLite database, CLI for ingestion, small local web UI fo
 
 ```
 FundTracker/
+  README.md                       setup and daily use
   PLAN.md                         this file
   PROGRESS.md                     decisions log, session log, open questions
   docs/edgar-formd-reference.md   verified data-source facts
   docs/SESSIONS.md                one self-contained prompt per work session
   pyproject.toml                  package metadata only; deps are in requirements*.txt
   requirements.txt, requirements-dev.txt
+  scripts/                        fetch_fixture.py, make_dataset_fixture.py
   src/fundtracker/
     config.py        user agent, data dir, rate limit, db path (env + .env file)
     edgar/client.py  rate-limited requests client, retries, disk cache
-    edgar/index.py   daily form index + Atom feed discovery
+    edgar/index.py   daily form index, EDGAR URLs
     edgar/datasets.py quarterly zip discovery + TSV readers
     edgar/formd_xml.py primary_doc.xml -> FormDFiling dataclass
     model.py         dataclasses shared by both loaders
     db/schema.sql
-    db/repo.py       upserts and queries
+    db/repo.py       upserts, queries, search index
     ingest.py        backfill, daily, catchup orchestration + ingest_log
+    derive.py        funds, managers, launches, scores, search index
     normalize.py     names, entity detection, amounts, dates, addresses
     classify.py      hedge-fund candidate rules
-    newness.py       manager linking and newness score
+    newness.py       launch newness score
+    traction.py      emerging manager traction score
+    export.py        Excel workbooks
+    digest.py        weekly Markdown digest
+    schedule.py      Task Scheduler task for refresh
     cli.py
-    web/app.py, web/templates/*.html, web/static/   (Flask)
+    web/app.py, filters.py, links.py, jobs.py, templates/, static/   (Flask + HTMX)
   tests/
-    fixtures/        a dozen real primary_doc.xml files + a trimmed quarterly zip
-  data/              gitignored: fundtracker.db, raw/{accession}.xml, datasets/*.zip
-    exports/         gitignored: the workbooks and CSVs new and emerging write
+    fixtures/        real primary_doc.xml files, daily index files, trimmed quarterly zips
+  data/              gitignored: fundtracker.db, raw/, datasets/ (or FUNDTRACKER_DATA_DIR)
+    exports/         gitignored: workbooks, CSVs and digests
 ```
 
 Where the data lives: the database, `raw/` and `datasets/` sit under `DATA_DIR`, which is `data/` in the project unless `FUNDTRACKER_DATA_DIR` in `.env` points elsewhere. On the user's machine it is `C:\Users\theke\FundTrackerData`, outside OneDrive, because OneDrive re-uploaded the 1.7 GB database after every run. Exports stay in the project at `data/exports/` (`EXPORT_DIR`, overridable with `FUNDTRACKER_EXPORT_DIR`) so the user finds the workbooks next to the code.
