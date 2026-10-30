@@ -1,0 +1,109 @@
+"""The site's Refresh job: ingest catchup, then derive, in a background thread.
+
+The only place the site touches the network. One job runs at a time; a
+second start while one runs is refused. The job keeps its state (idle,
+running, done or failed), its log lines and its timestamps for the status
+bar to show. Tests pass a fake runner, a function that takes log (a
+callable for one line) and does the work.
+"""
+
+import logging
+import threading
+from datetime import datetime
+
+from fundtracker import derive, ingest
+from fundtracker.db import repo
+
+# Lines kept for the status bar; a catchup over many days logs one line per day.
+MAX_LINES = 200
+
+
+class Refresher:
+    def __init__(self, runner):
+        self.runner = runner
+        self._lock = threading.Lock()
+        self._thread = None
+        self.state = "idle"
+        self.lines = []
+        self.started_at = None
+        self.finished_at = None
+        self.error = None
+
+    def start(self):
+        """Start the job in a thread and return True, or return False if one is running."""
+        with self._lock:
+            if self.state == "running":
+                return False
+            self.state, self.lines, self.error = "running", [], None
+            self.started_at, self.finished_at = datetime.now(), None
+            self._thread = threading.Thread(target=self._run, name="fundtracker-refresh", daemon=True)
+            self._thread.start()
+        return True
+
+    def _run(self):
+        try:
+            self.runner(self.log)
+            state, error = "done", None
+        except Exception as exc:  # the status bar shows any failure; the server keeps running
+            state, error = "failed", f"{type(exc).__name__}: {exc}"
+            self.log(f"failed: {error}")
+        with self._lock:
+            self.state, self.error, self.finished_at = state, error, datetime.now()
+
+    def log(self, line):
+        with self._lock:
+            self.lines.append(f"{datetime.now():%H:%M:%S} {line}")
+            del self.lines[:-MAX_LINES]
+
+    def snapshot(self):
+        """The job's state as a dict, safe to render while the thread runs."""
+        with self._lock:
+            return {"state": self.state, "lines": list(self.lines), "started_at": self.started_at,
+                    "finished_at": self.finished_at, "error": self.error}
+
+    def wait(self, timeout=None):
+        """Block until the current job ends (for tests and the command line)."""
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout)
+
+
+def refresh_runner(db_path):
+    """The real job: catchup from EDGAR's daily index, then derive, on its own connection."""
+
+    def run(log):
+        from fundtracker.edgar.client import EdgarClient
+
+        progress = logging.getLogger("fundtracker.ingest")
+        handler = _LineHandler(log)
+        level = progress.level
+        progress.addHandler(handler)
+        progress.setLevel(logging.INFO)
+        conn = repo.connect(db_path)
+        try:
+            log("catchup: loading every weekday not yet loaded")
+            results = ingest.catchup(conn, EdgarClient())
+            failed = [r for r in results if r.status == "error"]
+            log(f"catchup: {len(results)} days fetched, {sum(r.loaded for r in results)} filings loaded, "
+                f"{len(failed)} days failed")
+            log("derive: rebuilding funds, managers and launches (about four minutes)")
+            counts = derive.run(conn)
+            log(f"derive: {counts['fund']:,} funds, {counts['manager']:,} managers, "
+                f"{counts['launch']:,} launches")
+            if failed:
+                raise RuntimeError(f"catchup failed on {', '.join(str(r.day) for r in failed)}")
+        finally:
+            conn.close()
+            progress.removeHandler(handler)
+            progress.setLevel(level)
+
+    return run
+
+
+class _LineHandler(logging.Handler):
+    def __init__(self, log):
+        super().__init__(logging.INFO)
+        self._log = log
+
+    def emit(self, record):
+        self._log(record.getMessage())

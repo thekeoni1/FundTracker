@@ -1,5 +1,12 @@
-<div class="status" id="status">
+<div class="status" id="status"{% if job.state == "running" %} hx-get="{{ url_for('refresh_status') }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
   <span>Daily index loaded to {{ status.last_daily or "never" }}</span>
   <span>{{ status.filings | amount }} filings</span>
-  <span>Derived {{ (status.last_derive or "never")[:16] | replace("T", " ") }} UTC</span>
+  <span>Derived {{ (status.last_derive or "never")[:16] | replace("T", " ") }}{% if status.last_derive %} UTC{% endif %}</span>
+  <button type="button" hx-post="{{ url_for('refresh') }}" hx-target="#status" hx-swap="outerHTML"{% if job.state == "running" %} disabled{% endif %}>
+    {% if job.state == "running" %}Refreshing{% else %}Refresh{% endif %}
+  </button>
+  {% if job.state == "running" %}<span>Started {{ job.started_at.strftime("%H:%M:%S") }}, catchup then derive</span>
+  {% elif job.state == "done" %}<span>Refresh finished {{ job.finished_at.strftime("%H:%M:%S") }}; reload to see new rows</span>
+  {% elif job.state == "failed" %}<span class="failed">Refresh failed: {{ job.error }}</span>{% endif %}
+  {% if job.lines %}<pre>{{ job.lines | join("\n") }}</pre>{% endif %}
 </div>

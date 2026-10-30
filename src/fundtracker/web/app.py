@@ -4,7 +4,8 @@ create_app takes a connection factory, so tests pass a fixture database and
 the server opens the real one read-only. Every page opens one connection
 and closes it at the end of the request. Queries live in repo.py; this
 module parses filters, calls repo and renders templates. Nothing here
-writes to the database or stores per-user state.
+writes to the database or stores per-user state; only the Refresh job
+(jobs.py) writes, through ingest and derive.
 """
 
 import io
@@ -15,19 +16,22 @@ from flask import Flask, abort, g, render_template, request, send_file, url_for
 
 from fundtracker import classify, config, export, newness, traction
 from fundtracker.db import repo
-from fundtracker.web import filters, links
+from fundtracker.web import filters, jobs, links
 
 # Rows a page renders; the summary line says when there are more.
 DISPLAY_LIMIT = 500
 
 
-def create_app(connect=None, today=None):
+def create_app(connect=None, today=None, refresher=None):
     """The Flask app. connect() returns a new sqlite3 connection with sqlite3.Row
     rows (default: the configured database, read-only); today() returns the
-    date the default filters count back from (default date.today)."""
+    date the default filters count back from (default date.today); refresher
+    is the jobs.Refresher behind the Refresh button (default: catchup then
+    derive on the configured database)."""
     app = Flask(__name__)
     connect = connect or (lambda: repo.connect_readonly(config.DB_PATH))
     today = today or date.today
+    refresher = refresher or jobs.Refresher(jobs.refresh_runner(config.DB_PATH))
 
     def db():
         if "conn" not in g:
@@ -41,7 +45,8 @@ def create_app(connect=None, today=None):
             conn.close()
 
     def page(template, **context):
-        return render_template(template, status=repo.site_status(db()), **context)
+        return render_template(template, status=repo.site_status(db()), job=refresher.snapshot(),
+                               **context)
 
     _register_filters(app)
 
@@ -126,6 +131,18 @@ def create_app(connect=None, today=None):
     def search():
         q = request.args.get("q", "").strip()
         return page("search.html", q=q, results=repo.search(db(), q) if q else None)
+
+    @app.post("/refresh")
+    def refresh():
+        # Only the page's HTMX button may start a job: a cross-site form cannot set this header.
+        if not request.headers.get("HX-Request"):
+            abort(400)
+        refresher.start()
+        return refresh_status()
+
+    @app.get("/refresh/status")
+    def refresh_status():
+        return render_template("_status.html", status=repo.site_status(db()), job=refresher.snapshot())
 
     @app.errorhandler(404)
     def not_found(_exc):

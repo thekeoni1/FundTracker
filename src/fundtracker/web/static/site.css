@@ -90,3 +90,4 @@ ul.links { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; padding: 0; list-s
   dl.facts { grid-template-columns: 1fr; }
   dl.facts dt { margin-top: 0.4rem; }
 }
+.failed { color: var(--low); }
