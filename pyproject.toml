@@ -13,6 +13,9 @@ dependencies = []
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+fundtracker = ["db/*.sql"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 timeout = 30
