@@ -17,7 +17,7 @@ fundtracker = "fundtracker.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-fundtracker = ["db/*.sql"]
+fundtracker = ["db/*.sql", "web/templates/*.html", "web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

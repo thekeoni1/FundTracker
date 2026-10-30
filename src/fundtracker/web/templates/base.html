@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FundTracker{% endblock %} · FundTracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
+  <script src="{{ url_for('static', filename='htmx-2.0.3.min.js') }}" defer></script>
+</head>
+<body>
+  <header class="top">
+    <nav>
+      <a href="{{ url_for('launches') }}" class="brand">FundTracker</a>
+      <a href="{{ url_for('launches') }}"{% if request.endpoint == 'launches' %} aria-current="page"{% endif %}>Launches</a>
+      {% block nav_extra %}{% endblock %}
+    </nav>
+    {% include "_status.html" %}
+  </header>
+  <main>
+    {% block main %}{% endblock %}
+  </main>
+</body>
+</html>

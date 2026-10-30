@@ -1,0 +1,30 @@
+<div class="summary">
+  <p><strong>{{ total | amount }} launch{{ "" if total == 1 else "es" }}</strong>{% if total > rows | length %}, showing the first {{ rows | length }}{% endif %}: {{ summary | join("; ") }}.</p>
+</div>
+<div class="table-wrap">
+<table>
+  <thead><tr>
+    <th>Date</th><th>Score</th><th>Launch</th><th>Manager</th><th>Type</th><th>506</th>
+    <th class="num">Min</th><th class="num">Raised</th><th>State</th><th>Platform</th><th>EDGAR</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="nowrap">{{ r.window_start }}</td>
+      <td><span class="badge {{ r.newness_score | score_class }}" title="{{ r | launch_reasons }}">{{ r.newness_score }}</span></td>
+      <td><a href="/launch/{{ r.launch_id }}">{{ r.display_name }}</a>{% set n = r | n_funds %}{% if n > 1 %} <span class="muted">+{{ n - 1 }}</span>{% endif %}</td>
+      <td><a href="/manager/{{ r.manager_id }}">{{ r.manager_name or r.manager_id }}</a></td>
+      <td>{{ r.fund_type | short_type }}</td>
+      <td class="nowrap">{{ r.fund_exemptions | rule_506 }}</td>
+      <td class="num">{{ r.fund_min_investment_num | amount }}</td>
+      <td class="num">{{ r.fund_total_amount_sold_num | amount }}</td>
+      <td>{{ r.fund_state or "" }}</td>
+      <td class="small">{{ r | platform }}</td>
+      <td><a href="{{ links.edgar_filing(r.anchor_cik, r.launch_id) }}" target="_blank" rel="noopener">filing</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="11" class="empty">No launches match these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

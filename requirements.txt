@@ -1,2 +1,11 @@
 requests==2.32.3
 openpyxl==3.1.5
+# The local site (WP5) and what pip resolves for it.
+Flask==3.0.3
+Werkzeug==3.1.9
+Jinja2==3.1.6
+itsdangerous==2.2.0
+click==8.5.0
+blinker==1.9.0
+MarkupSafe==3.0.4
+colorama==0.4.6; sys_platform == "win32"

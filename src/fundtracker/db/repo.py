@@ -68,6 +68,16 @@ ADDED_COLUMNS = (
 )
 
 
+def connect_readonly(db_path):
+    """Open an existing database for reading only, as the site does: no schema, no writes.
+
+    Reads go on while derive holds its write transaction, since the database is in WAL mode.
+    """
+    conn = sqlite3.connect(f"{Path(db_path).resolve().as_uri()}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def _add_missing_columns(conn):
     for table, column, decl in ADDED_COLUMNS:
         if column not in {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}:
@@ -239,11 +249,66 @@ def launches_since(conn, since, min_score=0, fund_types=None):
     is a dict of the launch columns plus manager_name and the anchor fund's
     fund columns prefixed with fund_.
     """
+    return find_launches(conn, since, min_score=min_score, fund_types=fund_types)
+
+
+# Bands the site filters on, as (lowest included, highest excluded); None is open.
+MIN_INVESTMENT_BANDS = {"<100k": (None, 100_000), "100k-1m": (100_000, 1_000_000),
+                        ">1m": (1_000_000, None)}
+RAISED_BANDS = {"0": (None, 1), ">0": (1, None), ">1m": (1_000_000, None),
+                ">10m": (10_000_000, None)}
+LAUNCH_SORTS = {
+    "score": "l.newness_score DESC, l.window_start DESC, l.launch_id",
+    "date": "l.window_start DESC, l.newness_score DESC, l.launch_id",
+    "raised": "coalesce(f.total_amount_sold_num, -1) DESC, l.newness_score DESC, l.launch_id",
+}
+
+
+def _band(column, band, bands, where, params):
+    """Add column's band to where. Nothing raised counts a null amount as 0."""
+    if band not in bands:
+        return
+    low, high = bands[band]
+    if low is not None:
+        where.append(f"{column} >= ?")
+        params.append(low)
+    if high is not None:
+        where.append(f"coalesce({column}, 0) < ?")
+        params.append(high)
+
+
+def _in(column, values, where, params):
+    if values:
+        where.append(f"{column} IN ({', '.join('?' * len(values))})")
+        params.extend(values)
+
+
+def find_launches(conn, since, until=None, min_score=0, fund_types=None, rule=None, states=(),
+                  min_inv=None, raised=None, hide_platforms=False, sort="score"):
+    """Launches with window_start from since to until (both included), filtered and sorted.
+
+    rule is "b" or "c" for an anchor fund claiming Rule 506(b) or 506(c);
+    states are the anchor fund's state codes (a two-letter state, or EDGAR's
+    country code); min_inv and raised are keys of MIN_INVESTMENT_BANDS and
+    RAISED_BANDS on the anchor fund's terms; hide_platforms leaves out
+    launches whose reasons name an over-cap organisation; sort is a key of
+    LAUNCH_SORTS. Rows are as launches_since returns them.
+    """
     where = ["l.window_start >= ?", "coalesce(l.newness_score, 0) >= ?"]
     params = [since, min_score]
-    if fund_types:
-        where.append(f"l.fund_type IN ({', '.join('?' * len(fund_types))})")
-        params.extend(fund_types)
+    if until:
+        where.append("l.window_start <= ?")
+        params.append(until)
+    _in("l.fund_type", fund_types, where, params)
+    if rule in ("b", "c"):
+        where.append("EXISTS (SELECT 1 FROM json_each(f.exemptions) WHERE value = ?)")
+        params.append(f"06{rule}")
+    _in("f.state", list(states), where, params)
+    _band("f.min_investment_num", min_inv, MIN_INVESTMENT_BANDS, where, params)
+    _band("f.total_amount_sold_num", raised, RAISED_BANDS, where, params)
+    if hide_platforms:
+        where.append("NOT EXISTS (SELECT 1 FROM json_each(l.newness_reasons) "
+                     "WHERE json_extract(value, '$.code') = 'platform')")
     fund_columns = [r["name"] for r in conn.execute("PRAGMA table_info(fund)")]
     rows = conn.execute(
         f"""
@@ -253,7 +318,7 @@ def launches_since(conn, since, min_score=0, fund_types=None):
         LEFT JOIN manager m ON m.manager_id = l.manager_id
         LEFT JOIN fund f ON f.cik = l.anchor_cik
         WHERE {' AND '.join(where)}
-        ORDER BY l.newness_score DESC, l.window_start DESC, l.launch_id
+        ORDER BY {LAUNCH_SORTS.get(sort, LAUNCH_SORTS["score"])}
         """, params).fetchall()
     return [dict(r) for r in rows]
 
@@ -276,6 +341,16 @@ def last_ingest_key(conn, source, statuses=("ok", "no_index")):
     marks = ", ".join("?" * len(statuses))
     return conn.execute(f"SELECT max(key) FROM ingest_log WHERE source = ? AND status IN ({marks})",
                         (source, *statuses)).fetchone()[0]
+
+
+def site_status(conn):
+    """What the site's status bar shows: last daily day loaded, filings, last derive."""
+    derive = conn.execute(
+        "SELECT key, finished_at FROM ingest_log WHERE source = 'derive' AND status = 'ok' "
+        "ORDER BY finished_at DESC LIMIT 1").fetchone()
+    return {"last_daily": last_ingest_key(conn, "daily"),
+            "filings": conn.execute("SELECT count(*) FROM filing").fetchone()[0],
+            "last_derive": derive["finished_at"] if derive else None}
 
 
 def age_cutoff(today, age):

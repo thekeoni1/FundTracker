@@ -1,0 +1,5 @@
+<label>{{ label }}
+  <select name="{{ name }}">
+    {% for key, text in choices.items() %}<option value="{{ key }}"{% if key == value %} selected{% endif %}>{{ text }}</option>{% endfor %}
+  </select>
+</label>

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Launches{% endblock %}
+{% block main %}
+<h1>Launches</h1>
+<form class="filters" action="{{ url_for('launches') }}" method="get"
+      hx-get="{{ url_for('launches_table') }}" hx-target="#results" hx-trigger="change, submit">
+  <label>Filed from <input type="date" name="since" value="{{ f.since }}"></label>
+  <label>to <input type="date" name="until" value="{{ f.until }}"></label>
+  <label>Min score <input type="number" name="min_score" min="0" max="100" step="5" value="{{ f.min_score }}"></label>
+  {% with name="type", value=f.type, choices=options.TYPES, label="Type" %}{% include "_select.html" %}{% endwith %}
+  {% with name="rule", value=f.rule, choices=options.RULES, label="506" %}{% include "_select.html" %}{% endwith %}
+  <label>State <input type="text" name="state" value="{{ f.state | join(' ') }}" placeholder="NY CA E9" size="10"></label>
+  {% with name="min_inv", value=f.min_inv, choices=options.MIN_INVESTMENTS, label="Minimum" %}{% include "_select.html" %}{% endwith %}
+  {% with name="raised", value=f.raised, choices=options.RAISED, label="Raised" %}{% include "_select.html" %}{% endwith %}
+  {% with name="platforms", value=f.platforms, choices=options.PLATFORMS, label="Platforms" %}{% include "_select.html" %}{% endwith %}
+  {% with name="sort", value=f.sort, choices=options.LAUNCH_SORTS, label="Sort" %}{% include "_select.html" %}{% endwith %}
+  <button type="submit">Apply</button>
+</form>
+<div id="results">
+  {% include "_launches_table.html" %}
+</div>
+{% endblock %}

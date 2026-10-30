@@ -1,0 +1,5 @@
+<div class="status" id="status">
+  <span>Daily index loaded to {{ status.last_daily or "never" }}</span>
+  <span>{{ status.filings | amount }} filings</span>
+  <span>Derived {{ (status.last_derive or "never")[:16] | replace("T", " ") }} UTC</span>
+</div>
