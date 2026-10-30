@@ -5,7 +5,7 @@
     ingest catchup [--until 2026-10-28]      load every weekday not yet loaded
     stats [--quarter 2026q3]                 what the database holds
     derive                                   rebuild funds, managers and launches
-    new [--since 7d] [--min-score N] [--type hedge|all] [--csv PATH]
+    new [--since 7d] [--min-score N] [--type hedge|all] [--xlsx [PATH]] [--csv PATH]
                                              launches since a date, best score first
     fund <cik>                               a fund's filings, people and EDGAR links
     manager <id>                             a manager's funds over time
@@ -17,12 +17,14 @@ import csv
 import json
 import logging
 import re
+import shutil
 import sys
+import textwrap
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from fundtracker import config, derive, ingest
+from fundtracker import classify, config, derive, ingest, newness, normalize
 from fundtracker.db import repo
 from fundtracker.edgar.datasets import Quarter
 from fundtracker.edgar.index import filing_folder_url as edgar_folder
@@ -59,11 +61,14 @@ def main(argv=None):
     p.set_defaults(func=cmd_derive)
 
     p = sub.add_parser("new", help="launches first filed since a date, best newness score first")
-    p.add_argument("--since", default=parse_since("7d"), type=parse_since, metavar="7d|30d|YYYY-MM-DD",
+    p.add_argument("--since", default="7d", type=_since_arg, metavar="7d|30d|YYYY-MM-DD",
                    help="days back from today, or a date (default 7d)")
     p.add_argument("--min-score", type=int, default=0, metavar="N")
     p.add_argument("--type", choices=("hedge", "all"), default="hedge",
                    help="hedge: launches with a Hedge Fund; all: every pooled fund (default hedge)")
+    p.add_argument("--xlsx", nargs="?", const="", metavar="PATH",
+                   help="also write an Excel workbook (default path "
+                        "data/exports/new-{type}-{since}-{YYYYMMDD}.xlsx)")
     p.add_argument("--csv", metavar="PATH",
                    help="also write the rows with every launch and fund column")
     p.set_defaults(func=cmd_new)
@@ -234,6 +239,12 @@ def parse_since(text, today=None):
         raise argparse.ArgumentTypeError(f"expected 7d, 30d or YYYY-MM-DD, not {text!r}")
 
 
+def _since_arg(text):
+    """--since as typed, after checking parse_since accepts it; it also names the workbook."""
+    parse_since(text)
+    return text.strip()
+
+
 def _launch_name(row):
     n = len(json.loads(row["fund_ciks"]))
     return (row["display_name"] or "") + (f" (+{n - 1})" if n > 1 else "")
@@ -243,10 +254,8 @@ def _amount(value):
     return "" if value is None else f"{value:,}"
 
 
-def _top_reasons(row, n=2):
-    """The codes of the n reasons with the most points either way."""
-    reasons = json.loads(row["newness_reasons"] or "[]")
-    return [r["code"] for r in sorted(reasons, key=lambda r: -abs(r["points"]))[:n]]
+def _reasons(row):
+    return json.loads(row["newness_reasons"] or "[]")
 
 
 def _short_type(fund_type):
@@ -259,57 +268,118 @@ def _offering(row):
     return _amount(row["fund_total_offering_amount_num"])
 
 
+def _rule_506(row):
+    return classify.rule_506(json.loads(row["fund_exemptions"] or "[]"))
+
+
 # The columns new prints, as (header, width, value of a launches_since row).
-# Fund columns come from the launch's anchor fund. Width 0 is not cut.
+# Width None shares the space the others leave; every cell wraps to its width
+# rather than being cut. Fund columns come from the launch's anchor fund.
 NEW_COLUMNS = (
-    ("date", 10, lambda r: r["window_start"]),
-    ("launch", 34, _launch_name),
-    ("manager", 28, lambda r: r["manager_name"] or ""),
-    ("type", 10, lambda r: _short_type(r["fund_type"])),
-    ("exemptions", 14, lambda r: ",".join(json.loads(r["fund_exemptions"] or "[]"))),
-    ("min", 11, lambda r: _amount(r["fund_min_investment_num"])),
-    ("offering", 13, _offering),
-    ("state", 5, lambda r: r["fund_state"] or ""),
-    ("score", 5, lambda r: "" if r["newness_score"] is None else str(r["newness_score"])),
-    ("reasons", 32, lambda r: " ".join(_top_reasons(r))),
-    ("edgar", 0, lambda r: edgar_folder(r["anchor_cik"], r["launch_id"])),
+    ("Date", 10, lambda r: r["window_start"]),
+    ("Score", 5, lambda r: "" if r["newness_score"] is None else str(r["newness_score"])),
+    ("Launch", None, _launch_name),
+    ("Manager", None, lambda r: r["manager_name"] or ""),
+    ("Type", 9, lambda r: _short_type(r["fund_type"])),
+    ("506", 6, _rule_506),
+    ("Min", 9, lambda r: _amount(r["fund_min_investment_num"])),
+    ("State", 5, lambda r: r["fund_state"] or ""),
 )
+# The launch name's share of the flexible width; the manager gets the rest.
+LAUNCH_SHARE = 0.55
+MIN_FLEX_WIDTH = 16
+REASON_INDENT = " " * 6
+GAP = "  "
 
 
-def _cell(text, width):
-    text = str(text)
-    if not width:
-        return text
-    return (text[:width - 1] + "~") if len(text) > width else text.ljust(width)
+def _widths(total):
+    fixed = sum(w for _h, w, _v in NEW_COLUMNS if w)
+    flex = max(2 * MIN_FLEX_WIDTH, total - fixed - len(GAP) * (len(NEW_COLUMNS) - 1))
+    launch = max(MIN_FLEX_WIDTH, int(flex * LAUNCH_SHARE))
+    shares = iter((launch, max(MIN_FLEX_WIDTH, flex - launch)))
+    return [w or next(shares) for _h, w, _v in NEW_COLUMNS]
+
+
+def _table_lines(cells, widths):
+    """One row of cells as printed lines, each cell wrapped to its column width."""
+    wrapped = [textwrap.wrap(str(c), w, break_on_hyphens=False) or [""] for c, w in zip(cells, widths)]
+    return [GAP.join((w[i] if i < len(w) else "").ljust(width)
+                     for w, width in zip(wrapped, widths)).rstrip()
+            for i in range(max(len(w) for w in wrapped))]
+
+
+def launch_table(rows, total_width):
+    """The new table as lines: a header, then per launch its wrapped columns and an
+    indented line of reason phrases."""
+    widths = _widths(total_width)
+    lines = _table_lines([h for h, _w, _v in NEW_COLUMNS], widths)
+    for r in rows:
+        lines.extend(_table_lines([value(r) for _h, _w, value in NEW_COLUMNS], widths))
+        reasons = "; ".join(newness.reason_phrase(x) for x in _reasons(r))
+        if reasons:
+            lines.extend(textwrap.wrap(reasons, max(40, total_width), initial_indent=REASON_INDENT,
+                                       subsequent_indent=REASON_INDENT, break_on_hyphens=False))
+    return lines
+
+
+def default_xlsx_path(fund_type, since_text, today=None):
+    stamp = (today or date.today()).strftime("%Y%m%d")
+    return Path(config.DATA_DIR) / "exports" / f"new-{fund_type}-{since_text}-{stamp}.xlsx"
 
 
 def cmd_new(conn, args):
+    since = parse_since(args.since)
     fund_types = ["Hedge Fund"] if args.type == "hedge" else None
-    rows = repo.launches_since(conn, args.since, args.min_score, fund_types)
+    rows = repo.launches_since(conn, since, args.min_score, fund_types)
     if not rows and not conn.execute("SELECT 1 FROM launch LIMIT 1").fetchone():
         print("no launches yet: run fundtracker derive first")
         return 1
-    print("  ".join(_cell(h, w) for h, w, _v in NEW_COLUMNS).rstrip())
-    for r in rows:
-        print("  ".join(_cell(value(r), w) for _h, w, value in NEW_COLUMNS).rstrip())
-    print(f"{len(rows)} launches since {args.since}"
+    for line in launch_table(rows, shutil.get_terminal_size((120, 24)).columns):
+        print(line)
+    print(f"{len(rows)} launches since {since}"
           + (f" with score >= {args.min_score}" if args.min_score else "")
           + (", Hedge Fund only" if args.type == "hedge" else ", every pooled fund type"))
+    if args.xlsx is not None:
+        from fundtracker import export
+
+        path = Path(args.xlsx) if args.xlsx else default_xlsx_path(args.type, args.since)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        meta = {"generated_at": datetime.now(), "since": since, "type": args.type,
+                "min_score": args.min_score,
+                "last_daily": repo.last_ingest_key(conn, ingest.DAILY_SOURCE)}
+        export.write_workbook(path, rows, repo.funds_for_launches(conn, rows), meta)
+        print(f"wrote {path}")
     if args.csv:
         _write_new_csv(args.csv, rows)
         print(f"wrote {args.csv}")
     return 0
 
 
+# The leading CSV columns, as (header, value of a launches_since row); every
+# launch column and every anchor fund column (fund_*) follow them.
+CSV_COLUMNS = (
+    ("date", lambda r: r["window_start"]),
+    ("score", lambda r: r["newness_score"]),
+    ("launch", _launch_name),
+    ("manager", lambda r: r["manager_name"] or ""),
+    ("type", lambda r: r["fund_type"] or ""),
+    ("rule_506", _rule_506),
+    ("min", lambda r: r["fund_min_investment_num"]),
+    ("offering", _offering),
+    ("state", lambda r: r["fund_state"] or ""),
+    ("reasons", lambda r: "; ".join(newness.reason_phrase(x) for x in _reasons(r))),
+    ("edgar", lambda r: edgar_folder(r["anchor_cik"], r["launch_id"])),
+)
+
+
 def _write_new_csv(path, rows):
-    """The printed columns, then every launch column and every anchor fund column (fund_*)."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     raw = list(rows[0]) if rows else []
     with open(path, "w", newline="", encoding="utf-8") as fh:
         out = csv.writer(fh)
-        out.writerow([h for h, _w, _v in NEW_COLUMNS] + raw)
+        out.writerow([h for h, _v in CSV_COLUMNS] + raw)
         for r in rows:
-            out.writerow([value(r) for _h, _w, value in NEW_COLUMNS] + [r[c] for c in raw])
+            out.writerow([value(r) for _h, value in CSV_COLUMNS] + [r[c] for c in raw])
 
 
 def cmd_fund(conn, args):
@@ -323,7 +393,8 @@ def cmd_fund(conn, args):
         print(f"{fund['name']} (CIK {fund['cik']}), {fund['fund_type'] or fund['industry_group']}"
               f"{candidate}")
         linked = f", linked by {fund['evidence']}" if fund["evidence"] else ""
-        print(f"manager {fund['manager_id']}{linked}")
+        name = f" ({fund['manager_name']})" if fund["manager_name"] else ""
+        print(f"manager {fund['manager_id']}{name}{linked}")
     print("filings")
     for f in filings:
         o = f.offering
@@ -334,15 +405,19 @@ def cmd_fund(conn, args):
               f"sold {_amount(o.total_amount_sold_num) or '-'}, "
               f"min {_amount(o.min_investment_num) or '-'}, investors {investors}")
     print("related persons")
-    people = {}
+    people = {}  # name_norm -> (display name, relationships, is_entity), first filing's wording
     for f in filings:
         for p in f.related_persons:
-            people.setdefault(p.name_norm, (p.relationships, p.is_entity))
-    for name, (relationships, entity) in people.items():
+            name = normalize.entity_display_name(p.first, p.middle, p.last) or p.name_norm
+            people.setdefault(p.name_norm, (name, p.relationships, p.is_entity))
+    for name, relationships, entity in people.values():
         print(f"  {name}{' (entity)' if entity else ''}: {', '.join(relationships)}")
     print("signers")
-    signers = {(s.signer_norm or "", s.title or "") for f in filings for s in f.signatures}
-    for signer, title in sorted(signers):
+    signers = {}
+    for f in filings:
+        for sig in f.signatures:
+            signers.setdefault((sig.signer_norm or "", sig.title or ""), " ".join((sig.signer or "").split()))
+    for (_norm, title), signer in sorted(signers.items()):
         print(f"  {signer}, {title}")
     print("EDGAR")
     for f in filings:
@@ -360,7 +435,7 @@ def cmd_manager(conn, args):
           f"{m['n_funds']} funds{linked}")
     for f in m["funds"]:
         print(f"  {f['first_filing_date']} to {f['latest_filing_date']}  {f['cik']}  "
-              f"{_cell(f['name'] or '', 50)}  {f['fund_type'] or f['industry_group'] or ''}")
+              f"{f['name'] or '':<50}  {f['fund_type'] or f['industry_group'] or ''}")
     return 0
 
 

@@ -14,14 +14,13 @@ from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
-from fundtracker import derive, newness
+from fundtracker import classify, derive, newness
 from fundtracker.edgar.index import filing_folder_url
 
 DATE_FORMAT = "yyyy-mm-dd"
 AMOUNT_FORMAT = "#,##0"
 # Score colour scale: red at 0, yellow at 50, green at 100.
 SCORE_COLOURS = ("F8696B", "FFEB84", "63BE7B")
-RULE_506 = {"06b": "506(b)", "06c": "506(c)"}
 
 # Fund columns written as dates or as amounts on the Funds sheet.
 FUND_DATE_COLUMNS = {"first_filing_date", "latest_filing_date"}
@@ -41,10 +40,6 @@ def _exemptions(funds):
             if code not in seen:
                 seen.append(code)
     return seen
-
-
-def _rule_506(codes):
-    return ", ".join(RULE_506[c] for c in sorted(RULE_506) if c in codes)
 
 
 def _offering(launch):
@@ -72,7 +67,7 @@ LAUNCH_COLUMNS = (
     ("Funds", 7, None, lambda r, fs: len(json.loads(r["fund_ciks"]))),
     ("Type", 20, None, lambda r, fs: r["fund_type"]),
     ("Exemptions", 16, None, lambda r, fs: ", ".join(_exemptions(fs))),
-    ("Rule 506", 15, None, lambda r, fs: _rule_506(_exemptions(fs))),
+    ("Rule 506", 15, None, lambda r, fs: classify.rule_506(_exemptions(fs))),
     ("Min investment", 15, AMOUNT_FORMAT, lambda r, fs: r["fund_min_investment_num"]),
     ("Offering amount", 17, AMOUNT_FORMAT, lambda r, fs: _offering(r)),
     ("Amount sold", 15, AMOUNT_FORMAT, lambda r, fs: r["fund_total_amount_sold_num"]),

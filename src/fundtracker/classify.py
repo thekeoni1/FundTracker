@@ -56,6 +56,14 @@ def normalize_exemptions(exemptions):
     return out
 
 
+RULE_506 = {"06b": "506(b)", "06c": "506(c)"}
+
+
+def rule_506(exemptions):
+    """The Rule 506 variants among normalised exemption codes: "506(b)", "506(c)", both, or ""."""
+    return ", ".join(RULE_506[c] for c in sorted(RULE_506) if c in (exemptions or ()))
+
+
 def exclusion_matches(name):
     """The keys of EXCLUSION_PATTERNS that match name, in table order."""
     text = norm_text(name)

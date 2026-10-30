@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from openpyxl import load_workbook
 
 from fundtracker import cli
 from fundtracker.db import repo
@@ -43,18 +44,49 @@ def test_new_before_derive_says_so(db, capsys):
     assert "run fundtracker derive first" in capsys.readouterr().out
 
 
-def test_new_lists_hedge_launches_best_first(derived, capsys):
+@pytest.fixture
+def columns(monkeypatch):
+    monkeypatch.setenv("COLUMNS", "100")  # shutil.get_terminal_size reads it first
+
+
+def test_new_lists_hedge_launches_best_first(derived, capsys, columns):
     assert cli.main(["--db", derived, "new", "--since", "2026-10-01"]) == 0
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0].split()[:3] == ["date", "launch", "manager"]
-    body = lines[1:-1]
-    assert len(body) == 3  # Axiaris, Arrogate and Callodine are the October hedge launches
-    top = body[0]
-    assert top.startswith("2026-10-28  Axiaris Capital Management Fund, ~")
-    assert "Axiaris Capital Management" in top and "06c,3C,3C.1" in top and "TX" in top
-    assert "new_manager single_filing" in top
-    assert top.endswith("https://www.sec.gov/Archives/edgar/data/2158817/000215881726000001/")
+    assert lines[0].split() == ["Date", "Score", "Launch", "Manager", "Type", "506", "Min", "State"]
     assert lines[-1] == "3 launches since 2026-10-01, Hedge Fund only"
+    starts = [i for i, line in enumerate(lines) if line[:4] == "2026"]
+    assert [lines[i].split()[1] for i in starts] == ["100", "90", "60"]
+    axiaris = lines[starts[0]:starts[1]]
+    assert axiaris[0].split()[:4] == ["2026-10-28", "100", "Axiaris", "Capital"]
+    assert axiaris[0].split()[-4:] == ["Hedge", "506(c)", "100,000", "TX"]
+    # The full launch and manager names, wrapped in their columns, never cut.
+    column = axiaris[0].index("Axiaris")
+    assert " ".join(line[column:column + 23].strip() for line in axiaris[:2]) == (
+        "Axiaris Capital Management Fund, LP")
+    assert "Management LLC" in axiaris[1]
+    reasons = " ".join(line.strip() for line in axiaris[2:])
+    assert axiaris[2].startswith("      new manager: no key seen before (+40); ")
+    assert "pre-launch: first sale not yet made (+15)" in reasons
+    assert all(len(line) <= 100 for line in lines) and "~" not in "".join(lines)
+
+
+def test_new_defaults_to_hedge_and_writes_the_workbook(derived, capsys, columns, monkeypatch, tmp_path):
+    monkeypatch.setattr(cli.config, "DATA_DIR", tmp_path / "data")
+    assert cli.main(["--db", derived, "new", "--since", "2026-10-01", "--xlsx"]) == 0
+    out = capsys.readouterr().out
+    expected = cli.default_xlsx_path("hedge", "2026-10-01")
+    assert expected.parent == tmp_path / "data" / "exports"
+    assert expected.name == f"new-hedge-2026-10-01-{date.today():%Y%m%d}.xlsx"
+    assert out.splitlines()[-1] == f"wrote {expected}"
+    launches = load_workbook(expected)["Launches"]
+    assert [c.value for c in launches["C"]][1:] == [
+        "Axiaris Capital Management Fund, LP", "Arrogate Capital Fund, LP", "Callodine Capital Fund, LP"]
+
+    path = tmp_path / "all.xlsx"
+    assert cli.main(["--db", derived, "new", "--since", "7d", "--type", "all", "--xlsx", str(path)]) == 0
+    assert capsys.readouterr().out.splitlines()[-1] == f"wrote {path}"
+    assert load_workbook(path).sheetnames == ["Launches", "Funds", "Reasons", "About"]
+    assert cli.default_xlsx_path("all", "7d", today=date(2026, 10, 30)).name == "new-all-7d-20261030.xlsx"
 
 
 def test_new_type_all_and_min_score(derived, capsys):
@@ -96,8 +128,9 @@ def test_fund_shows_filings_people_signers_and_links(derived, capsys):
                           "hedge candidate (hedge_fund)")
     assert "manager m0002158817" in out
     assert "2026-10-28  D    0002158817-26-000001  06c,3C,3C.1" in out
-    assert "AXIARIS CAPITAL MANAGEMENT LLC (entity)" in out
-    assert "ANDREW MURTLAND" in out
+    assert "manager m0002158817 (Axiaris Capital Management LLC)" in out
+    assert "  Axiaris Capital Management LLC (entity): Executive Officer" in out
+    assert "  Andrew Murtland, Managing Member of the General Partner" in out
     assert "https://www.sec.gov/Archives/edgar/data/2158817/000215881726000001/" in out
     assert cli.main(["--db", derived, "fund", "1"]) == 1
 

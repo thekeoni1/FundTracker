@@ -264,11 +264,13 @@ def last_ingest_key(conn, source, statuses=("ok", "no_index")):
 
 
 def get_fund(conn, cik):
-    """The fund row for cik as a dict, with manager_id, or None. Accepts an unpadded CIK."""
+    """The fund row for cik as a dict, with manager_id, evidence and manager_name, or None.
+    Accepts an unpadded CIK."""
     row = conn.execute(
         """
-        SELECT f.*, fm.manager_id, fm.evidence FROM fund f
-        LEFT JOIN fund_manager fm USING (cik) WHERE f.cik = ?
+        SELECT f.*, fm.manager_id, fm.evidence, m.display_name AS manager_name FROM fund f
+        LEFT JOIN fund_manager fm USING (cik) LEFT JOIN manager m USING (manager_id)
+        WHERE f.cik = ?
         """, (pad_cik(cik),)).fetchone()
     return dict(row) if row else None
 
