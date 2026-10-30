@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fundtracker import classify, normalize
 from fundtracker.db import repo
@@ -98,23 +98,25 @@ def build_funds(conn):
         LEFT JOIN offering fo ON fo.accession = e.first_accession
         LEFT JOIN issuer fi ON fi.accession = e.first_accession AND fi.is_primary = 1
         """)
-    out = []
-    for r in rows:
-        exemptions = classify.normalize_exemptions(json.loads(r["exemptions"] or "[]"))
-        candidate, reason = classify.is_hedge_candidate(
-            r["industry_group"], r["fund_type"], exemptions, r["entity_name"])
-        out.append((
-            r["cik"], r["entity_name"], fund_family_stem(r["entity_name"]), r["fund_type"],
-            r["industry_group"], r["first_filing_date"], r["first_accession"],
-            r["latest_filing_date"], r["latest_accession"], r["n"], json.dumps(exemptions),
-            r["state_or_country"], r["state_or_country_desc"], int(candidate), reason,
-            r["sale_yet_to_occur"], r["total_amount_sold_num"], r["n_investors"],
-            r["min_investment_num"], r["total_offering_amount_num"],
-            r["total_offering_amount_is_indefinite"], r["year_of_inc_choice"],
-            r["year_of_inc_value"],
-        ))
-    conn.executemany(f"INSERT INTO fund VALUES ({', '.join('?' * 23)})", out)
-    return len(out)
+
+    def fund_rows():
+        for r in rows:
+            exemptions = classify.normalize_exemptions(json.loads(r["exemptions"] or "[]"))
+            candidate, reason = classify.is_hedge_candidate(
+                r["industry_group"], r["fund_type"], exemptions, r["entity_name"])
+            yield (
+                r["cik"], r["entity_name"], fund_family_stem(r["entity_name"]), r["fund_type"],
+                r["industry_group"], r["first_filing_date"], r["first_accession"],
+                r["latest_filing_date"], r["latest_accession"], r["n"], json.dumps(exemptions),
+                r["state_or_country"], r["state_or_country_desc"], int(candidate), reason,
+                r["sale_yet_to_occur"], r["total_amount_sold_num"], r["n_investors"],
+                r["min_investment_num"], r["total_offering_amount_num"],
+                r["total_offering_amount_is_indefinite"], r["year_of_inc_choice"],
+                r["year_of_inc_value"],
+            )
+
+    # Streamed: a list of every fund row held about 300 MB on the real data.
+    return conn.executemany(f"INSERT INTO fund VALUES ({', '.join('?' * 23)})", fund_rows()).rowcount
 
 
 def _usable(key):
@@ -144,18 +146,47 @@ def build_link_keys(conn):
     written and, per capped kind, how many distinct keys are over the cap.
     """
     conn.execute("DELETE FROM link_key")
-    first = {}  # (kind, key, cik) -> earliest filing date
-    best = {}   # (kind, key, cik) -> display rank of its best written form, see _display_rank
+    conn.execute("DROP TABLE IF EXISTS temp.key_rows")
+    conn.execute("CREATE TEMP TABLE key_rows (kind TEXT, key TEXT, cik TEXT, day TEXT, "
+                 "display TEXT, n INTEGER)")
+    insert = "INSERT INTO temp.key_rows VALUES (?, ?, ?, ?, ?, ?)"
+    conn.executemany(insert, _entity_key_rows(conn))
+    conn.executemany(insert, _signer_key_rows(conn))
+    conn.executemany(insert, _issuer_key_rows(conn))
 
-    def add(kind, key, cik, day, display=None, n=0):
-        k = (kind, key, cik)
-        if k not in first or (day and (first[k] is None or day < first[k])):
-            first[k] = day
-        if display:
-            rank = _display_rank(display, n)
-            if k not in best or rank < best[k]:
-                best[k] = rank
+    # One row per (kind, key, cik): its earliest day, and its best written form
+    # (most rows filed, ties to the longest, then the first in sort order).
+    caps = " ".join(f"WHEN '{kind}' THEN n_ciks > {cap}" for kind, cap in KEY_CAPS.items())
+    conn.execute(
+        f"""
+        INSERT INTO link_key (kind, key, cik, first_date, over_cap, display)
+        WITH ranked AS (
+            SELECT kind, key, cik, display,
+                   min(day) OVER cik_key AS first_date,
+                   row_number() OVER (PARTITION BY kind, key, cik
+                                      ORDER BY display IS NULL, n DESC, length(display) DESC,
+                                               display) AS rank
+            FROM key_rows WINDOW cik_key AS (PARTITION BY kind, key, cik)
+        ), one AS (
+            SELECT kind, key, cik, first_date, display,
+                   count(*) OVER (PARTITION BY kind, key) AS n_ciks
+            FROM ranked WHERE rank = 1
+        )
+        SELECT kind, key, cik, first_date, coalesce(CASE kind {caps} END, 0), display
+        FROM one ORDER BY kind, key, cik
+        """)
+    conn.execute("DROP TABLE temp.key_rows")
+    over_cap = dict.fromkeys(KEY_CAPS, 0)
+    for r in conn.execute("SELECT kind, count(DISTINCT key) FROM link_key WHERE over_cap = 1 "
+                          "GROUP BY kind"):
+        over_cap[r[0]] = r[1]
+    for kind, n in over_cap.items():
+        log.info("%d %s keys shared by more than %d CIKs flagged over_cap", n, kind, KEY_CAPS[kind])
+    return {"rows": conn.execute("SELECT count(*) FROM link_key").fetchone()[0], "over_cap": over_cap}
 
+
+def _entity_key_rows(conn):
+    """(kind, key, cik, day, display, rows) for entity_stem and entity_tokens keys."""
     for r in conn.execute(
             """
             SELECT f.cik, rp.name_norm, rp.first, rp.middle, rp.last,
@@ -167,25 +198,38 @@ def build_link_keys(conn):
         stem = entity_stem(r["name_norm"])
         if _usable_stem(stem):
             display = entity_display_name(r["first"], r["middle"], r["last"])
-            add("entity_stem", stem, r["cik"], r["day"], display, r["n"])
-            add("entity_tokens", entity_tokens(stem), r["cik"], r["day"], display, r["n"])
+            yield "entity_stem", stem, r["cik"], r["day"], display, r["n"]
+            yield "entity_tokens", entity_tokens(stem), r["cik"], r["day"], display, r["n"]
 
-    # Every name each CIK has filed under, to skip a fund signing as itself.
-    own_names = defaultdict(set)
-    for r in conn.execute("SELECT DISTINCT cik, entity_name FROM issuer WHERE is_primary = 1"):
-        own_names[r["cik"]].add(norm_text(r["entity_name"]))
+
+def _signer_key_rows(conn):
+    """Signer keys, skipping a fund signing as itself. Signers and the CIK's own names are
+    both read in CIK order and merged, so no name table is held."""
+    names = conn.execute("SELECT DISTINCT cik, entity_name FROM issuer WHERE is_primary = 1 "
+                         "ORDER BY cik")
+    pending = names.fetchone()
+    own_cik, own = None, set()
     for r in conn.execute(
             """
             SELECT f.cik, s.signer_norm, s.signer, min(f.filing_date) AS day, count(*) AS n
             FROM signature s JOIN filing f USING (accession)
-            GROUP BY f.cik, s.signer_norm, s.signer
+            GROUP BY f.cik, s.signer_norm, s.signer ORDER BY f.cik
             """):
+        if r["cik"] != own_cik:
+            own_cik, own = r["cik"], set()
+            while pending is not None and pending[0] < own_cik:
+                pending = names.fetchone()
+            while pending is not None and pending[0] == own_cik:
+                own.add(norm_text(pending[1]))
+                pending = names.fetchone()
         signer = r["signer_norm"]
-        if (not _usable(signer) or signer in own_names[r["cik"]]
-                or is_entity(signer, None, signer)):
+        if not _usable(signer) or signer in own or is_entity(signer, None, signer):
             continue
-        add("signer", signer, r["cik"], r["day"], " ".join((r["signer"] or "").split()), r["n"])
+        yield "signer", signer, r["cik"], r["day"], " ".join((r["signer"] or "").split()), r["n"]
 
+
+def _issuer_key_rows(conn):
+    """Phone and address keys from each CIK's primary issuer rows."""
     for r in conn.execute(
             """
             SELECT f.cik, i.phone, i.street1, i.zip, min(f.filing_date) AS day
@@ -195,26 +239,10 @@ def build_link_keys(conn):
             """):
         phone = re.sub(r"\D", "", r["phone"] or "")
         if len(phone) >= MIN_PHONE_DIGITS and _usable(phone):
-            add("phone", phone, r["cik"], r["day"])
+            yield "phone", phone, r["cik"], r["day"], None, 0
         address = address_key(r["street1"], r["zip"])
         if _usable(address):
-            add("address", address, r["cik"], r["day"])
-
-    ciks_per_key = defaultdict(int)
-    for kind, key, _cik in first:
-        if kind in KEY_CAPS:
-            ciks_per_key[(kind, key)] += 1
-    over = {k for k, n in ciks_per_key.items() if n > KEY_CAPS[k[0]]}
-    over_cap = {kind: sum(1 for k in over if k[0] == kind) for kind in KEY_CAPS}
-    for kind, n in over_cap.items():
-        log.info("%d %s keys shared by more than %d CIKs flagged over_cap", n, kind, KEY_CAPS[kind])
-
-    rows = sorted((kind, key, cik, day, int((kind, key) in over),
-                   best[(kind, key, cik)][2] if (kind, key, cik) in best else None)
-                  for (kind, key, cik), day in first.items())
-    conn.executemany("INSERT INTO link_key (kind, key, cik, first_date, over_cap, display) "
-                     "VALUES (?, ?, ?, ?, ?, ?)", rows)
-    return {"rows": len(rows), "over_cap": over_cap}
+            yield "address", address, r["cik"], r["day"], None, 0
 
 
 def _display_rank(display, count):
@@ -346,24 +374,27 @@ def _set_display_names(conn):
     CIKs from the first source in NAME_SOURCES that has one, ties to the longest. Managers
     with none keep the earliest fund's family display name build_managers wrote.
 
-    SQLite counts the CIKs per manager and name, so Python only keeps the best
-    name per manager while reading the counts.
+    SQLite counts the CIKs per manager and name and ranks them; Python only passes
+    the winners to the update.
     """
-    best = {}  # manager_id -> (source rank, display rank)
-    for r in conn.execute(
-            """
+    names = conn.execute(
+        """
+        WITH counted AS (
             SELECT fm.manager_id,
                    CASE WHEN lk.kind = 'signer' THEN 2 WHEN lk.over_cap THEN 1 ELSE 0 END AS source,
                    lk.display, count(DISTINCT lk.cik) AS n
             FROM link_key lk JOIN fund_manager fm USING (cik)
             WHERE lk.kind IN ('entity_stem', 'signer') AND lk.display IS NOT NULL
             GROUP BY fm.manager_id, source, lk.display
-            """):
-        rank = (r["source"], _display_rank(r["display"], r["n"]))
-        if r["manager_id"] not in best or rank < best[r["manager_id"]]:
-            best[r["manager_id"]] = rank
-    conn.executemany("UPDATE manager SET display_name = ? WHERE manager_id = ?",
-                     sorted((rank[1][2], manager_id) for manager_id, rank in best.items()))
+        ), ranked AS (
+            SELECT manager_id, display,
+                   row_number() OVER (PARTITION BY manager_id
+                                      ORDER BY source, n DESC, length(display) DESC, display) AS rank
+            FROM counted
+        )
+        SELECT display, manager_id FROM ranked WHERE rank = 1
+        """).fetchall()
+    conn.executemany("UPDATE manager SET display_name = ? WHERE manager_id = ?", names)
 
 
 # Manager traction (PLAN.md 7.6): what the member funds' latest filings say.
@@ -388,40 +419,40 @@ def build_manager_stats(conn):
         SELECT DISTINCT fm.manager_id FROM link_key lk JOIN fund_manager fm USING (cik)
         WHERE lk.over_cap = 1 AND lk.kind IN ('entity_stem', 'entity_tokens')
         """)}
-    places = {}
-    for r in conn.execute(
-            """
-            SELECT m.manager_id, i.city, i.state_or_country, i.state_or_country_desc
-            FROM manager m JOIN fund f ON f.cik = substr(m.manager_id, 2)
-            LEFT JOIN issuer i ON i.accession = f.latest_accession AND i.is_primary = 1
-            """):
-        places[r[0]] = _place(r[1], r[2], r[3])
-    rows = []
-    for r in conn.execute(
-            """
-            SELECT fm.manager_id, sum(f.n_filings) AS n_filings,
-                   max(f.latest_filing_date) AS latest,
-                   sum(coalesce(lo.total_amount_sold_num, 0)) AS sold,
-                   sum(coalesce(lo.n_investors, 0)) AS investors,
-                   max(f.n_filings > 1 AND lf.submission_type = 'D/A') AS amended,
-                   group_concat(DISTINCT f.fund_type) AS types
-            FROM fund_manager fm JOIN fund f USING (cik)
-            LEFT JOIN offering lo ON lo.accession = f.latest_accession
-            LEFT JOIN filing lf ON lf.accession = f.latest_accession
-            GROUP BY fm.manager_id
-            """):
-        manager_id = r["manager_id"]
-        types = sorted(set((r["types"] or "").split(",")) - {""})
-        rows.append((r["n_filings"], r["latest"], r["sold"], r["investors"], int(bool(r["amended"])),
-                     int(manager_id in over_cap), json.dumps(types),
-                     *places.get(manager_id, (None, None, None)), manager_id[1:], manager_id))
+
+    def rows():
+        for r in conn.execute(
+                """
+                WITH stats AS (
+                    SELECT fm.manager_id, sum(f.n_filings) AS n_filings,
+                           max(f.latest_filing_date) AS latest,
+                           sum(coalesce(lo.total_amount_sold_num, 0)) AS sold,
+                           sum(coalesce(lo.n_investors, 0)) AS investors,
+                           max(f.n_filings > 1 AND lf.submission_type = 'D/A') AS amended,
+                           group_concat(DISTINCT f.fund_type) AS types
+                    FROM fund_manager fm JOIN fund f USING (cik)
+                    LEFT JOIN offering lo ON lo.accession = f.latest_accession
+                    LEFT JOIN filing lf ON lf.accession = f.latest_accession
+                    GROUP BY fm.manager_id
+                )
+                SELECT s.*, i.city, i.state_or_country, i.state_or_country_desc
+                FROM stats s JOIN fund e ON e.cik = substr(s.manager_id, 2)
+                LEFT JOIN issuer i ON i.accession = e.latest_accession AND i.is_primary = 1
+                """):
+            manager_id = r["manager_id"]
+            types = sorted(set((r["types"] or "").split(",")) - {""})
+            yield (r["n_filings"], r["latest"], r["sold"], r["investors"], int(bool(r["amended"])),
+                   int(manager_id in over_cap), json.dumps(types),
+                   *_place(r["city"], r["state_or_country"], r["state_or_country_desc"]),
+                   manager_id[1:], manager_id)
+
     conn.executemany(
         """
         UPDATE manager SET n_filings = ?, latest_filing_date = ?, total_sold = ?,
                total_investors = ?, has_amendment = ?, is_over_cap = ?, fund_types = ?,
                city = ?, state = ?, country = ?, edgar_cik = ?
         WHERE manager_id = ?
-        """, rows)
+        """, rows())
     conn.executemany("UPDATE manager SET people = ? WHERE manager_id = ?", _people(conn))
     conn.executemany("UPDATE manager SET prior_firms = ? WHERE manager_id = ?", _prior_firms(conn))
 
@@ -547,19 +578,9 @@ def _days(start, end):
     return (date.fromisoformat(end) - date.fromisoformat(start)).days
 
 
-def _fold_keys(conn):
-    """cik -> set of fold keys from link_key: ("signer", key) for every signer, and
-    ("entity", key) for every over-cap entity key, which names a large manager or
-    platform (AQR's series funds share no other entity)."""
-    keys = defaultdict(set)
-    for r in conn.execute(
-            """
-            SELECT cik, kind, key FROM link_key
-            WHERE (kind = 'signer' AND over_cap = 0)
-               OR (kind IN ('entity_stem', 'entity_tokens') AND over_cap = 1)
-            """):
-        keys[r["cik"]].add(("signer" if r["kind"] == "signer" else "entity", r["key"]))
-    return keys
+# Fold keys travel with each fund row as kind US key, joined by RS.
+_KEY_SEP, _KEYS_SEP = "\x1f", "\x1e"
+POOLED = "SELECT cik FROM fund WHERE industry_group = 'Pooled Investment Fund'"
 
 
 def build_launches(conn, score=None):
@@ -570,108 +591,163 @@ def build_launches(conn, score=None):
     accession) order. A fund joins the earliest open launch that started at
     most LAUNCH_WINDOW_DAYS before it and holds a fund sharing one of its
     fold keys: the same manager (when the manager has more than one fund),
-    a signer, an over-cap entity key, or the same fund family stem.
+    a signer, an over-cap entity key (a large manager or platform: AQR's
+    series funds share no other entity), or the same fund family stem.
     Otherwise it starts a new launch. The fixed walk order keeps launch_id
     stable. score(launch, funds) returns (score, reasons) and is applied when
     given.
+
+    The walk reads light rows with each fund's fold keys joined in SQL and
+    forgets keys whose launch can no longer be joined. The launches are then
+    written to a temporary table and read back with their funds' columns one
+    launch at a time, so no fund table is held in Python.
     """
     conn.execute("DELETE FROM launch")
-    first_d = {}  # cik -> (filing date, accession) of its earliest D filing
-    for r in conn.execute("SELECT cik, min(filing_date || ' ' || accession) FROM filing "
-                          "WHERE submission_type = 'D' GROUP BY cik"):
-        first_d[r[0]] = (r[1][:10], r[1][11:])
-    funds = [dict(r) for r in conn.execute(
-        """
-        SELECT f.*, fm.manager_id, m.n_funds
+    for table in ("launch_member", "first_d", "key_seen"):
+        conn.execute(f"DROP TABLE IF EXISTS temp.{table}")
+    walk = conn.execute(
+        f"""
+        WITH fold AS (
+            SELECT cik, group_concat(CASE kind WHEN 'signer' THEN 'signer' ELSE 'entity' END
+                                     || char(31) || key, char(30)) AS keys
+            FROM link_key
+            WHERE (kind = 'signer' AND over_cap = 0)
+               OR (kind IN ('entity_stem', 'entity_tokens') AND over_cap = 1)
+            GROUP BY cik
+        )
+        SELECT f.cik, f.first_filing_date, f.family_stem, fm.manager_id, m.n_funds, fold.keys
         FROM fund f JOIN fund_manager fm USING (cik) JOIN manager m USING (manager_id)
+        LEFT JOIN fold USING (cik)
         WHERE f.industry_group = 'Pooled Investment Fund'
         ORDER BY f.first_filing_date, f.first_accession
-        """)]
-    shared = _fold_keys(conn)
-
-    windows = []  # each a list of funds, in the order they joined
-    latest = {}   # fold key -> index of the latest window holding a fund with it
-    for fund in funds:
-        keys = set(shared.get(fund["cik"], ()))
-        if fund["n_funds"] > 1:
-            keys.add(("manager", fund["manager_id"]))
-        if _usable(fund["family_stem"]):
-            keys.add(("family", fund["family_stem"]))
+        """)
+    windows = []   # [start date, [ciks in the order they joined]]
+    latest = {}    # fold key -> index of the latest window holding a fund with it
+    prune_after = None
+    for cik, day, family, manager_id, n_funds, joined in walk:
+        if prune_after is not None and day > prune_after:
+            # Windows that started more than LAUNCH_WINDOW_DAYS ago take no more funds.
+            latest = {k: i for k, i in latest.items()
+                      if _days(windows[i][0], day) <= LAUNCH_WINDOW_DAYS}
+            prune_after = None
+        if prune_after is None and day:
+            prune_after = (date.fromisoformat(day) + timedelta(days=LAUNCH_WINDOW_DAYS)).isoformat()
+        keys = {tuple(k.split(_KEY_SEP, 1)) for k in joined.split(_KEYS_SEP)} if joined else set()
+        if n_funds > 1:
+            keys.add(("manager", manager_id))
+        if _usable(family):
+            keys.add(("family", family))
         # Windows are opened in date order, so a key's latest window is its
         # only one that can still be within LAUNCH_WINDOW_DAYS.
         open_ = [latest[k] for k in keys if k in latest
-                 and _days(windows[latest[k]][0]["first_filing_date"],
-                           fund["first_filing_date"]) <= LAUNCH_WINDOW_DAYS]
+                 and _days(windows[latest[k]][0], day) <= LAUNCH_WINDOW_DAYS]
         if open_:
             index = min(open_)
-            windows[index].append(fund)
+            windows[index][1].append(cik)
         else:
             index = len(windows)
-            windows.append([fund])
+            windows.append([day, [cik]])
         for k in keys:
             latest[k] = max(index, latest.get(k, -1))
+    del latest
 
-    rows = []
-    for window in windows:
-        # launch_id is the earliest D filing of any fund in the window; a
-        # fund with no D in the database falls back to its first filing.
-        anchors = [(first_d.get(f["cik"]) or (f["first_filing_date"] or "", f["first_accession"]), f)
-                   for f in window]
-        (_day, launch_id), anchor = min(anchors, key=lambda a: a[0])
-        types = {f["fund_type"] for f in window}
-        launch = {
-            "launch_id": launch_id,
-            "manager_id": anchor["manager_id"],
-            "display_name": anchor["name"],
-            "anchor_cik": anchor["cik"],
-            "fund_type": "Hedge Fund" if "Hedge Fund" in types else anchor["fund_type"],
-            "window_start": window[0]["first_filing_date"],
-            "window_end": max(f["first_filing_date"] for f in window),
-            "fund_ciks": json.dumps([f["cik"] for f in window]),
-            "newness_score": None,
-            "newness_reasons": "[]",
-        }
-        if score is not None:
-            points, reasons = score(launch, window)
-            launch["newness_score"], launch["newness_reasons"] = points, json.dumps(reasons)
-        rows.append(launch)
-    if rows:
-        columns = list(rows[0])
-        conn.executemany(
-            f"INSERT INTO launch ({', '.join(columns)}) "
-            f"VALUES ({', '.join(':' + c for c in columns)})", rows)
-    return len(rows)
+    conn.execute("CREATE TEMP TABLE launch_member (idx INTEGER, pos INTEGER, cik TEXT, "
+                 "PRIMARY KEY (idx, pos))")
+    conn.executemany("INSERT INTO temp.launch_member VALUES (?, ?, ?)",
+                     ((i, pos, cik) for i, (_day, ciks) in enumerate(windows)
+                      for pos, cik in enumerate(ciks)))
+    del windows
+    conn.execute("CREATE TEMP TABLE first_d AS SELECT cik, min(filing_date || ' ' || accession) AS d "
+                 "FROM filing WHERE submission_type = 'D' GROUP BY cik")
+    conn.execute("CREATE INDEX temp.first_d_cik ON first_d(cik)")
+    # The earliest date any of a pooled fund's keys under the cap was seen on any filing.
+    conn.execute(
+        f"""
+        CREATE TEMP TABLE key_seen AS
+        WITH seen AS (
+            SELECT kind, key, min(first_date) AS first_seen FROM link_key
+            WHERE over_cap = 0 GROUP BY kind, key
+        )
+        SELECT lk.cik, min(seen.first_seen) AS first_seen
+        FROM link_key lk JOIN seen USING (kind, key)
+        WHERE lk.over_cap = 0 AND lk.cik IN ({POOLED}) GROUP BY lk.cik
+        """)
+    conn.execute("CREATE INDEX temp.key_seen_cik ON key_seen(cik)")
+    members = conn.execute(
+        """
+        SELECT lm.idx, f.*, fm.manager_id, fd.d AS first_d, ks.first_seen AS key_first_seen,
+               (SELECT group_concat(coalesce(s.title, ''), char(30)) FROM signature s
+                WHERE s.accession = f.first_accession) AS first_titles
+        FROM launch_member lm JOIN fund f USING (cik) JOIN fund_manager fm USING (cik)
+        LEFT JOIN first_d fd USING (cik) LEFT JOIN key_seen ks USING (cik)
+        ORDER BY lm.idx, lm.pos
+        """)
+
+    def launch_rows():
+        for _idx, window in _groups(members):
+            yield _launch_row(window, score)
+
+    columns = ("launch_id", "manager_id", "display_name", "anchor_cik", "fund_type", "window_start",
+               "window_end", "fund_ciks", "newness_score", "newness_reasons")
+    n = conn.executemany(f"INSERT INTO launch ({', '.join(columns)}) "
+                         f"VALUES ({', '.join('?' * len(columns))})", launch_rows()).rowcount
+    for table in ("launch_member", "first_d", "key_seen"):
+        conn.execute(f"DROP TABLE temp.{table}")
+    return max(n, 0)
+
+
+def _groups(rows):
+    """(idx, [row dicts]) for consecutive rows sharing their first column."""
+    current, group = None, []
+    for r in rows:
+        if r[0] != current and group:
+            yield current, group
+            group = []
+        current = r[0]
+        group.append(dict(r))
+    if group:
+        yield current, group
+
+
+def _launch_row(window, score):
+    """The launch row for one window of fund dicts, in joining order."""
+    # launch_id is the earliest D filing of any fund in the window; a
+    # fund with no D in the database falls back to its first filing.
+    def anchor_key(f):
+        return (f["first_d"][:10], f["first_d"][11:]) if f["first_d"] else (
+            f["first_filing_date"] or "", f["first_accession"])
+
+    anchor = min(window, key=anchor_key)
+    launch_id = anchor_key(anchor)[1]
+    types = {f["fund_type"] for f in window}
+    launch = {
+        "launch_id": launch_id,
+        "manager_id": anchor["manager_id"],
+        "window_start": window[0]["first_filing_date"],
+    }
+    points, reasons = score(launch, window) if score is not None else (None, [])
+    return (launch_id, anchor["manager_id"], anchor["name"], anchor["cik"],
+            "Hedge Fund" if "Hedge Fund" in types else anchor["fund_type"],
+            window[0]["first_filing_date"], max(f["first_filing_date"] for f in window),
+            json.dumps([f["cik"] for f in window]), points, json.dumps(reasons))
 
 
 def launch_scorer(conn):
     """A score(launch, funds) for build_launches, with the facts newness needs.
 
-    Reads, once per run: for each pooled fund, the earliest date any of its
-    keys under the cap was seen on any filing; its over-cap entity keys, as
-    display name and fund count; the signer titles on its first filing; and
-    each manager's fund first-filing dates, to count funds filed before a
-    launch. Over-cap phone and address keys belong to registered agents and
+    Each fund row from build_launches carries key_first_seen (the earliest date
+    any of its keys under the cap was seen on any filing) and first_titles (the
+    signer titles on its first filing). This reads, once per run, the over-cap
+    entity keys of pooled funds, as display name and fund count, and each
+    manager's fund first-filing dates, to count funds filed before a launch.
+    Over-cap phone and address keys belong to registered agents and
     administrators and say nothing about the manager, so they are not read.
     """
     from bisect import bisect_left
 
     from fundtracker import newness
 
-    pooled = "SELECT cik FROM fund WHERE industry_group = 'Pooled Investment Fund'"
-    key_first_seen = dict(conn.execute(
-        f"""
-        WITH seen AS (
-            SELECT kind, key, min(first_date) AS first_seen FROM link_key
-            WHERE over_cap = 0 GROUP BY kind, key
-        )
-        SELECT lk.cik, min(seen.first_seen) FROM link_key lk JOIN seen USING (kind, key)
-        WHERE lk.over_cap = 0 AND lk.cik IN ({pooled}) GROUP BY lk.cik
-        """).fetchall())
-    platforms = _over_cap_entities(conn, pooled)
-    titles = defaultdict(list)
-    for r in conn.execute(f"SELECT f.cik, s.title FROM fund f JOIN signature s "
-                          f"ON s.accession = f.first_accession WHERE f.cik IN ({pooled})"):
-        titles[r["cik"]].append(r["title"])
+    platforms = _over_cap_entities(conn, POOLED)
     manager_dates = defaultdict(list)
     for r in conn.execute("SELECT fm.manager_id, f.first_filing_date FROM fund_manager fm "
                           "JOIN fund f USING (cik) ORDER BY f.first_filing_date"):
@@ -679,12 +755,13 @@ def launch_scorer(conn):
 
     def score(launch, funds):
         start = launch["window_start"]
-        seen = [key_first_seen[f["cik"]] for f in funds if key_first_seen.get(f["cik"])]
+        seen = [f["key_first_seen"] for f in funds if f.get("key_first_seen")]
         facts = {
             "window_start": start,
             "key_seen_before": bool(seen) and min(seen) < start,
             "prior_funds": bisect_left(manager_dates[launch["manager_id"]], start),
-            "signer_titles": [t for f in funds for t in titles.get(f["cik"], ())],
+            "signer_titles": [t for f in funds for t in (f.get("first_titles") or "").split(_KEYS_SEP)
+                              if f.get("first_titles") is not None],
             "platforms": _merge_platforms(p for f in funds for p in platforms.get(f["cik"], ())),
             "funds": [dict(f, exemptions=json.loads(f["exemptions"])) for f in funds],
         }
@@ -724,6 +801,12 @@ def _merge_platforms(pairs):
 
 
 DERIVE_SOURCE = "derive"
+# SQLite memory for a derive run. The map lets the joins read the raw tables
+# without a copy per page, but mapped pages count toward the process's working
+# set, and the harness stops a run when the machine runs short. 4 GiB put the
+# peak at 2.65 GiB (Session 7); see the decisions log for the budget.
+DERIVE_MMAP_BYTES = 512 * 1024 * 1024
+DERIVE_CACHE_KIB = 131072
 
 
 def run(conn, today=None):
@@ -733,8 +816,8 @@ def run(conn, today=None):
     run, since derive always rebuilds from scratch. review is not touched.
     """
     started = _now()
-    conn.execute("PRAGMA mmap_size = 4294967296")  # the joins read the raw tables at random
-    conn.execute("PRAGMA cache_size = -131072")
+    conn.execute(f"PRAGMA mmap_size = {DERIVE_MMAP_BYTES}")
+    conn.execute(f"PRAGMA cache_size = -{DERIVE_CACHE_KIB}")
     counts = {}
     with conn:
         counts["fund"] = build_funds(conn)

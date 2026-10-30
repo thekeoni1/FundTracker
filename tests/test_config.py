@@ -14,7 +14,6 @@ def reload_config(monkeypatch):
             monkeypatch.delenv(key, raising=False)
         for key, value in env.items():
             monkeypatch.setenv(key, value)
-        monkeypatch.setattr(config, "_read_env_file", lambda path: {})  # ignore the real .env
         return importlib.reload(config)
 
     yield reload
@@ -32,7 +31,8 @@ def test_data_dir_override_moves_db_raw_and_datasets(reload_config, tmp_path):
 
 
 def test_defaults_and_relative_paths_resolve_against_the_project(reload_config):
-    c = reload_config()
+    # The environment wins over .env, so this holds whatever the real .env says.
+    c = reload_config(FUNDTRACKER_DATA_DIR="data")
     assert c.DATA_DIR == c.PROJECT_ROOT / "data"
     assert c.DB_PATH == c.PROJECT_ROOT / "data" / "fundtracker.db"
     c = reload_config(FUNDTRACKER_EXPORT_DIR="out")
