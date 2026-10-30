@@ -215,6 +215,8 @@ fundtracker serve                     start the web UI on localhost:8000
 
 ### Web UI (phase 2)
 
+User decision 2026-10-30: review state, notes and anything outreach related are deferred to WP5b. WP5 ships the two rankings with composable filters (filing date range first), exports of the filtered view, detail pages, a related-people view, search, generated outbound links (EDGAR, web search, LinkedIn people search, SEC IAPD search, since Form D carries no website) and a Refresh job. Form ADV enrichment (website, AUM, headcount) is WP7; digest and saved views are WP6.
+
 - **Inbox**: launches since last visit (or a date range), grouped rows, score badge with hover reasons, filters for fund type, exemption (3C.1/3C.7, 506(b)/506(c)), state or country, min investment range, score threshold, review status. Row actions: set status, add note, open EDGAR.
 - **Launch / Fund detail**: all filings for the family, side by side; related persons with "also appears in" links; signer; offering terms; raw XML link.
 - **Manager detail**: every fund linked to this manager over time, with first-seen date.
@@ -312,9 +314,15 @@ Brief: "Implement WP4d from docs/SESSIONS.md Session 7."
 
 Depends on: WP4.
 
-Deliver: Flask app with the pages in section 8, HTMX interactions for status and filters, `review` table persistence, CSV export of the filtered view, status bar with "refresh now" running `catchup`. Templates kept simple and readable.
+Deliver: Flask 3.0.3 app with vendored HTMX; Launches and Emerging pages whose filters live in the query string (filing date range, score, type, Rule 506, state, raised and minimum investment bands, hide platforms, prior firm); Excel export of the filtered view; launch, manager, person and search pages; `web/links.py` for generated outbound links; a background Refresh job running catchup then derive with progress. No review state (WP5b). Templates kept simple and readable.
 
-Done when: `fundtracker serve` opens the inbox; status changes persist across restarts; filters compose; export matches the visible rows; pages render acceptably at phone width.
+Done when: `fundtracker serve` opens the launches page; filters compose and the URL carries them; export matches the visible rows; detail pages render in under a second on the real data; Refresh runs; pages render acceptably at phone width.
+
+### WP5b: Review state and outreach tracker
+
+Depends on: WP5. Deferred by the user on 2026-10-30 until the read-only site is in use.
+
+Deliver: `review` table writes through the UI (status, notes, contacted date), ignored managers hidden by default, a follow-ups page, "new since last visit".
 
 Brief: "Implement WP5 from PLAN.md: the local web UI (inbox, launch/fund detail, manager detail, search, export, status bar) over the existing database with Flask, Jinja2 and HTMX."
 
