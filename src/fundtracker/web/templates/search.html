@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block main %}
+<h1>Search</h1>
+<form action="{{ url_for('search') }}" method="get" class="filters">
+  <label>Name contains <input type="search" name="q" value="{{ q }}"></label>
+  <button type="submit">Search</button>
+</form>
+{% if results %}
+<h2>Managers ({{ results.managers | length }}{% if results.managers | length == 50 %}, the first 50{% endif %})</h2>
+<ul>
+{% for m in results.managers %}
+  <li><a href="{{ url_for('manager', manager_id=m.manager_id) }}">{{ m.display_name }}</a> <span class="muted">first seen {{ m.first_seen_date }}, {{ m.n_funds }} fund{{ "" if m.n_funds == 1 else "s" }}{% if m.city %}, {{ m.city }}{% endif %}</span></li>
+{% else %}<li class="muted">None.</li>{% endfor %}
+</ul>
+<h2>Funds ({{ results.funds | length }}{% if results.funds | length == 50 %}, the first 50{% endif %})</h2>
+<ul>
+{% for f in results.funds %}
+  <li>{% if f.manager_id %}<a href="{{ url_for('manager', manager_id=f.manager_id) }}">{{ f.name }}</a>{% else %}{{ f.name }}{% endif %} <span class="muted">{{ f.fund_type or "" }}, first filed {{ f.first_filing_date }}, CIK {{ f.cik }}</span></li>
+{% else %}<li class="muted">None.</li>{% endfor %}
+</ul>
+<h2>People ({{ results.people | length }}{% if results.people | length == 50 %}, the first 50{% endif %})</h2>
+<ul>
+{% for p in results.people %}
+  <li><a href="{{ url_for('person', name_norm=p.name_norm) }}">{{ p.name_norm }}</a> <span class="muted">{{ p.n_filings }} filing{{ "" if p.n_filings == 1 else "s" }}</span></li>
+{% else %}<li class="muted">None.</li>{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

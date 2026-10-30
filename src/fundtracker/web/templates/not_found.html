@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Not found{% endblock %}
+{% block main %}
+<h1>Not found</h1>
+<p>Nothing in the database has that ID. IDs can change when derive runs again; try <a href="{{ url_for('search') }}">search</a>.</p>
+{% endblock %}

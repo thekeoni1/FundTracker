@@ -1,0 +1,17 @@
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Name</th><th>Roles</th><th class="num">Filings</th><th>Links</th></tr></thead>
+  <tbody>
+  {% for p in people %}
+    <tr>
+      <td><a href="{{ url_for('person', name_norm=p.name_norm) }}">{{ p.name }}</a>{% if p.is_entity %} <span class="muted">(entity)</span>{% endif %}</td>
+      <td>{{ p.roles | join(", ") }}</td>
+      <td class="num">{{ p.n_filings }}</td>
+      <td>{% if p.is_entity %}<a href="{{ links.web_search(p.name) }}" target="_blank" rel="noopener">web</a>{% else %}<a href="{{ links.linkedin_people(p.name, firm) }}" target="_blank" rel="noopener">LinkedIn</a>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="empty">No related persons filed.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

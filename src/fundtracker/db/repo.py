@@ -450,6 +450,187 @@ def get_manager(conn, manager_id):
     return manager
 
 
+def get_launch(conn, launch_id):
+    """The launch row as a dict with manager_name, or None. Under "funds", its funds in the
+    launch's order, each with sale_date and the primary issuer's address and phone from the
+    fund's first filing; under "people" and "signers", those of the funds' first filings."""
+    row = conn.execute(
+        "SELECT l.*, m.display_name AS manager_name FROM launch l "
+        "LEFT JOIN manager m USING (manager_id) WHERE l.launch_id = ?", (launch_id,)).fetchone()
+    if row is None:
+        return None
+    launch = dict(row)
+    ciks = json.loads(launch["fund_ciks"] or "[]")
+    funds = {r["cik"]: dict(r) for r in conn.execute(
+        f"""
+        SELECT f.*, o.sale_date, i.street1, i.street2, i.city, i.state_or_country,
+               i.state_or_country_desc, i.zip, i.phone
+        FROM fund f
+        LEFT JOIN offering o ON o.accession = f.first_accession
+        LEFT JOIN issuer i ON i.accession = f.first_accession AND i.is_primary = 1
+        WHERE f.cik IN ({', '.join('?' * len(ciks))})
+        """, ciks)}
+    launch["funds"] = [funds[c] for c in ciks if c in funds]
+    accessions = [f["first_accession"] for f in launch["funds"]]
+    launch["people"] = people_on(conn, accessions)
+    launch["signers"] = signers_on(conn, accessions)
+    return launch
+
+
+def filings_timeline(conn, manager_id):
+    """One dict per filing of the manager's funds, oldest first: filing_date, submission_type,
+    accession, cik, fund name, and the offering's amounts, investors and minimum."""
+    rows = conn.execute(
+        """
+        SELECT f.filing_date, f.submission_type, f.accession, f.cik, fu.name,
+               o.total_amount_sold_num, o.n_investors, o.min_investment_num,
+               o.total_offering_amount_num, o.total_offering_amount_is_indefinite
+        FROM fund_manager fm JOIN fund fu USING (cik)
+        JOIN filing f ON f.cik = fm.cik
+        LEFT JOIN offering o ON o.accession = f.accession
+        WHERE fm.manager_id = ?
+        ORDER BY f.filing_date, f.accession
+        """, (manager_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def people_on(conn, accessions):
+    """The related persons on the given filings, one dict per name_norm in filing order:
+    name_norm, name (as displayed), is_entity, roles (merged) and n_filings."""
+    from fundtracker.normalize import entity_display_name, person_display_name
+
+    people = {}
+    for chunk in _chunks(accessions):
+        for r in conn.execute(
+                f"SELECT * FROM related_person WHERE accession IN ({', '.join('?' * len(chunk))}) "
+                "ORDER BY accession, seq", chunk):
+            if not r["name_norm"]:
+                continue
+            p = people.get(r["name_norm"])
+            if p is None:
+                display = entity_display_name if r["is_entity"] else person_display_name
+                p = people[r["name_norm"]] = {
+                    "name_norm": r["name_norm"], "is_entity": bool(r["is_entity"]),
+                    "name": display(r["first"], r["middle"], r["last"]) or r["name_norm"],
+                    "roles": [], "accessions": set()}
+            p["roles"].extend(x for x in json.loads(r["relationships"] or "[]") if x not in p["roles"])
+            p["accessions"].add(r["accession"])
+    for p in people.values():
+        p["n_filings"] = len(p.pop("accessions"))
+    return list(people.values())
+
+
+def signers_on(conn, accessions):
+    """Distinct signers with their titles on the given filings, as dicts, by signer."""
+    seen = {}
+    for chunk in _chunks(accessions):
+        for r in conn.execute(
+                f"SELECT signer, signer_norm, title FROM signature "
+                f"WHERE accession IN ({', '.join('?' * len(chunk))})", chunk):
+            seen.setdefault((r["signer_norm"] or "", r["title"] or ""), " ".join((r["signer"] or "").split()))
+    return [{"signer": signer, "signer_norm": norm, "title": title}
+            for (norm, title), signer in sorted(seen.items())]
+
+
+def manager_phone(conn, manager):
+    """The phone as filed on the primary issuer of the manager's earliest fund's latest filing."""
+    row = conn.execute(
+        "SELECT i.phone FROM fund f JOIN issuer i ON i.accession = f.latest_accession AND i.is_primary = 1 "
+        "WHERE f.cik = ?", (manager["edgar_cik"],)).fetchone()
+    return row["phone"] if row else None
+
+
+def appearances(conn, name_norm):
+    """Every fund name_norm appears on, as a related person or a signer, with its manager.
+
+    Returns one dict per fund, in order of first appearance: cik, name (the
+    fund's), fund_type, manager_id, manager_name, roles (merged; a signature
+    adds "Signer: title"), first_date, last_date, first_accession (this
+    name's first filing on the fund) and n_filings.
+    """
+    rows = conn.execute(
+        """
+        SELECT f.filing_date, f.accession, f.cik, rp.relationships AS roles, NULL AS title, 0 AS signed
+        FROM related_person rp JOIN filing f USING (accession) WHERE rp.name_norm = :n
+        UNION ALL
+        SELECT f.filing_date, f.accession, f.cik, '[]', s.title, 1
+        FROM signature s JOIN filing f USING (accession) WHERE s.signer_norm = :n
+        ORDER BY 1, 2
+        """, {"n": name_norm}).fetchall()
+    by_cik = {}
+    for r in rows:
+        a = by_cik.setdefault(r["cik"], {
+            "cik": r["cik"], "name": None, "fund_type": None, "manager_id": None, "manager_name": None,
+            "roles": [], "first_date": r["filing_date"], "first_accession": r["accession"],
+            "accessions": set()})
+        roles = json.loads(r["roles"] or "[]")
+        if r["signed"]:
+            roles = [f"Signer: {r['title']}" if r["title"] else "Signer"]
+        a["roles"].extend(x for x in roles if x not in a["roles"])
+        a["last_date"] = r["filing_date"]
+        a["accessions"].add(r["accession"])
+    for chunk in _chunks(by_cik):
+        for r in conn.execute(
+                f"""
+                SELECT f.cik, f.name, f.fund_type, fm.manager_id, m.display_name AS manager_name
+                FROM fund f LEFT JOIN fund_manager fm USING (cik) LEFT JOIN manager m USING (manager_id)
+                WHERE f.cik IN ({', '.join('?' * len(chunk))})
+                """, chunk):
+            by_cik[r["cik"]].update(name=r["name"], fund_type=r["fund_type"], manager_id=r["manager_id"],
+                                    manager_name=r["manager_name"])
+    for a in by_cik.values():
+        a["n_filings"] = len(a.pop("accessions"))
+    return list(by_cik.values())
+
+
+def person_name(conn, name_norm):
+    """name_norm as a related person's name is displayed, or as a signer wrote it, or None."""
+    from fundtracker.normalize import entity_display_name, person_display_name
+
+    r = conn.execute("SELECT first, middle, last, is_entity FROM related_person WHERE name_norm = ? LIMIT 1",
+                     (name_norm,)).fetchone()
+    if r:
+        display = entity_display_name if r["is_entity"] else person_display_name
+        return display(r["first"], r["middle"], r["last"]) or name_norm
+    r = conn.execute("SELECT signer FROM signature WHERE signer_norm = ? LIMIT 1", (name_norm,)).fetchone()
+    return " ".join(r["signer"].split()) if r and r["signer"] else None
+
+
+def search(conn, text, limit=50):
+    """Funds, managers and people whose names contain text, up to limit of each.
+
+    Returns {"funds": [...], "managers": [...], "people": [...]}: fund rows
+    with manager_id, newest first; manager rows, newest first; and people as
+    name_norm with n_filings, most filings first. The people query reads only the
+    name_norm index, which keeps it near a third of a second on three million rows.
+    """
+    p = _like_pattern(text)
+    funds = conn.execute(
+        """
+        SELECT f.cik, f.name, f.fund_type, f.first_filing_date, f.state, fm.manager_id
+        FROM fund f LEFT JOIN fund_manager fm USING (cik)
+        WHERE f.name LIKE ? ESCAPE '!' ORDER BY f.first_filing_date DESC, f.cik LIMIT ?
+        """, (p, limit)).fetchall()
+    managers = conn.execute(
+        """
+        SELECT manager_id, display_name, first_seen_date, n_funds, city, state, country FROM manager
+        WHERE display_name LIKE ? ESCAPE '!' ORDER BY first_seen_date DESC, manager_id LIMIT ?
+        """, (p, limit)).fetchall()
+    people = conn.execute(
+        """
+        SELECT name_norm, count(*) AS n_filings FROM related_person
+        WHERE name_norm LIKE ? ESCAPE '!' GROUP BY name_norm ORDER BY n_filings DESC, name_norm LIMIT ?
+        """, (p, limit)).fetchall()
+    return {"funds": [dict(r) for r in funds], "managers": [dict(r) for r in managers],
+            "people": [dict(r) for r in people]}
+
+
+def _chunks(values, size=500):
+    values = list(values)
+    for start in range(0, len(values), size):
+        yield values[start:start + size]
+
+
 def search_names(conn, text, limit=50):
     """Case-insensitive local search over fund names, manager names and related persons.
 

@@ -13,7 +13,9 @@
       <a href="{{ url_for('launches') }}" class="brand">FundTracker</a>
       <a href="{{ url_for('launches') }}"{% if request.endpoint == 'launches' %} aria-current="page"{% endif %}>Launches</a>
       <a href="{{ url_for('emerging') }}"{% if request.endpoint == 'emerging' %} aria-current="page"{% endif %}>Emerging</a>
-      {% block nav_extra %}{% endblock %}
+      <form class="search" action="{{ url_for('search') }}" method="get" role="search">
+        <input type="search" name="q" value="{{ q or '' }}" placeholder="Fund, manager or person" aria-label="Search">
+      </form>
     </nav>
     {% include "_status.html" %}
   </header>

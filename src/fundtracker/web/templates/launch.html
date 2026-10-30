@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ launch.display_name }}{% endblock %}
+{% block main %}
+<h1>{{ launch.display_name }}</h1>
+<dl class="facts">
+  <dt>Score</dt><dd><span class="badge {{ launch.newness_score | score_class }}">{{ launch.newness_score }}</span></dd>
+  <dt>Window</dt><dd>{{ launch.window_start }} to {{ launch.window_end }}</dd>
+  <dt>Manager</dt><dd><a href="{{ url_for('manager', manager_id=launch.manager_id) }}">{{ launch.manager_name or launch.manager_id }}</a></dd>
+  <dt>Type</dt><dd>{{ launch.fund_type or "" }}</dd>
+  <dt>Launch ID</dt><dd>{{ launch.launch_id }}</dd>
+</dl>
+
+<h2>Funds</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr>
+    <th>Fund</th><th>CIK</th><th>Type</th><th>Exemptions</th><th class="num">Min</th><th class="num">Offering</th>
+    <th class="num">Sold</th><th class="num">Investors</th><th>Sale date</th><th>Formed</th><th>Address</th><th>EDGAR</th>
+  </tr></thead>
+  <tbody>
+  {% for f in launch.funds %}
+    <tr>
+      <td>{{ f.name }}</td>
+      <td class="nowrap">{{ f.cik }}</td>
+      <td>{{ f.fund_type or f.industry_group or "" }}</td>
+      <td class="nowrap">{{ f.exemptions | exemptions }}</td>
+      <td class="num">{{ f.min_investment_num | amount }}</td>
+      <td class="num">{% if f.total_offering_amount_is_indefinite %}Indefinite{% else %}{{ f.total_offering_amount_num | amount }}{% endif %}</td>
+      <td class="num">{{ f.total_amount_sold_num | amount }}</td>
+      <td class="num">{{ f.n_investors | amount }}</td>
+      <td class="nowrap">{{ f.sale_date or ("yet to occur" if f.sale_yet_to_occur else "") }}</td>
+      <td>{{ f.year_of_inc_value or f.year_of_inc_choice or "" }}</td>
+      <td class="small">{{ f | address }}{% if f.phone %}<br>{{ f.phone }}{% endif %}</td>
+      <td class="nowrap"><a href="{{ links.edgar_filing(f.cik, f.first_accession) }}" target="_blank" rel="noopener">Form D</a>
+        · <a href="{{ links.edgar_company(f.cik) }}" target="_blank" rel="noopener">filings</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>People</h2>
+{% with people=launch.people, firm=launch.manager_name %}{% include "_people.html" %}{% endwith %}
+
+<h2>Signers</h2>
+<ul>
+{% for s in launch.signers %}
+  <li>{% if s.signer_norm %}<a href="{{ url_for('person', name_norm=s.signer_norm) }}">{{ s.signer }}</a>{% else %}{{ s.signer }}{% endif %}{% if s.title %}, {{ s.title }}{% endif %}</li>
+{% else %}
+  <li class="muted">No signature filed.</li>
+{% endfor %}
+</ul>
+
+<h2>Reasons</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Reason</th><th class="num">Points</th><th>Detail</th></tr></thead>
+  <tbody>
+  {% for r in reasons %}
+    <tr><td>{{ reason_labels.get(r.code, r.code) }}</td><td class="num">{{ "%+d" | format(r.points) }}</td><td class="small">{{ r.detail or "" }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

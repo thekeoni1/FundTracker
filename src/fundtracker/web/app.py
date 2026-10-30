@@ -10,7 +10,7 @@ writes to the database or stores per-user state.
 import json
 from datetime import date
 
-from flask import Flask, g, render_template, request, url_for
+from flask import Flask, abort, g, render_template, request, url_for
 
 from fundtracker import classify, config, newness, traction
 from fundtracker.db import repo
@@ -75,6 +75,35 @@ def create_app(connect=None, today=None):
     @app.get("/emerging/table")
     def emerging_table():
         return _partial("_emerging_table.html", "emerging", emerging_context())
+
+    @app.get("/launch/<launch_id>")
+    def launch(launch_id):
+        row = repo.get_launch(db(), launch_id) or abort(404)
+        return page("launch.html", launch=row, reasons=_launch_reasons(row))
+
+    @app.get("/manager/<manager_id>")
+    def manager(manager_id):
+        m = repo.get_manager(db(), manager_id) or abort(404)
+        timeline = repo.filings_timeline(db(), manager_id)
+        return page("manager.html", m=m, timeline=timeline, phone=repo.manager_phone(db(), m),
+                    people=repo.people_on(db(), [t["accession"] for t in timeline]))
+
+    @app.get("/person/<path:name_norm>")
+    def person(name_norm):
+        rows = repo.appearances(db(), name_norm)
+        if not rows:
+            abort(404)
+        return page("person.html", name=repo.person_name(db(), name_norm) or name_norm,
+                    name_norm=name_norm, rows=rows)
+
+    @app.get("/search")
+    def search():
+        q = request.args.get("q", "").strip()
+        return page("search.html", q=q, results=repo.search(db(), q) if q else None)
+
+    @app.errorhandler(404)
+    def not_found(_exc):
+        return page("not_found.html"), 404
 
     return app
 
@@ -160,5 +189,13 @@ def _register_filters(app):
         people_short=_people_short,
         prior_firms=lambda m: ", ".join(json.loads(m["prior_firms"] or "[]")),
         place=lambda m: ", ".join(p for p in (m["city"], m["state"] or m["country"]) if p),
+        exemptions=lambda text: ", ".join(classify.sort_exemptions(json.loads(text or "[]"))),
+        address=_address,
     )
-    app.jinja_env.globals.update(links=links)
+    app.jinja_env.globals.update(links=links, reason_labels=newness.REASON_LABELS)
+
+
+def _address(f):
+    """Street, city, state or country and zip as filed, one line."""
+    place = f["state_or_country_desc"] or f["state_or_country"]
+    return ", ".join(p for p in (f["street1"], f["street2"], f["city"], place, f["zip"]) if p)

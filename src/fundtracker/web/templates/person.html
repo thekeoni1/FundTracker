@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ name }}{% endblock %}
+{% block main %}
+<h1>{{ name }}</h1>
+<p class="muted">Every fund this name appears on as a related person or a signer, filed as {{ name_norm }}.</p>
+<ul class="links">
+  <li><a href="{{ links.linkedin_people(name) }}" target="_blank" rel="noopener">LinkedIn people search</a></li>
+  <li><a href="{{ links.web_search(name) }}" target="_blank" rel="noopener">Web search</a></li>
+</ul>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>First</th><th>Last</th><th>Fund</th><th>Type</th><th>Manager</th><th>Roles</th><th class="num">Filings</th><th>EDGAR</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="nowrap">{{ r.first_date }}</td>
+      <td class="nowrap">{{ r.last_date }}</td>
+      <td>{{ r.name or r.cik }}</td>
+      <td>{{ r.fund_type or "" }}</td>
+      <td>{% if r.manager_id %}<a href="{{ url_for('manager', manager_id=r.manager_id) }}">{{ r.manager_name or r.manager_id }}</a>{% endif %}</td>
+      <td class="small">{{ r.roles | join(", ") }}</td>
+      <td class="num">{{ r.n_filings }}</td>
+      <td><a href="{{ links.edgar_filing(r.cik, r.first_accession) }}" target="_blank" rel="noopener">filing</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
