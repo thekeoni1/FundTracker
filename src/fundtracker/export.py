@@ -147,6 +147,7 @@ MANAGER_COLUMNS = (
     ("State", 7, None, lambda m: m["state"]),
     ("Country", 16, None, lambda m: m["country"]),
     ("People", 60, None, lambda m: _people_text(json.loads(m["people"] or "[]"))),
+    ("Prior firm", 40, None, lambda m: ", ".join(json.loads(m["prior_firms"] or "[]"))),
     ("Reasons", 80, None, lambda m: "; ".join(traction.reason_phrase(x)
                                                for x in json.loads(m["reasons"]))),
     ("EDGAR", 9, None, lambda m: "filings"),

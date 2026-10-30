@@ -430,6 +430,11 @@ def _people_text(row):
     return "; ".join(f"{p['name']} ({', '.join(p['roles'])})" if p["roles"] else p["name"] for p in people)
 
 
+def _prior_text(row):
+    firms = json.loads(row["prior_firms"] or "[]")
+    return f"prior firm: {', '.join(firms)}" if firms else ""
+
+
 def _place_text(row):
     return ", ".join(p for p in (row["city"], row["state"] or row["country"]) if p)
 
@@ -465,9 +470,11 @@ def emerging_rows(conn, args, today):
 
 
 def emerging_table(rows, total_width):
-    """The emerging table: per manager its columns, a line of people and a line of reasons."""
+    """The emerging table: per manager its columns, then lines for its people, its prior
+    firm when it has one, and its reasons."""
     return table(EMERGING_COLUMNS, rows, total_width, lambda r: [
         _people_text(r),
+        _prior_text(r),
         "; ".join(traction.reason_phrase(x) for x in json.loads(r["reasons"]))])
 
 
@@ -515,10 +522,11 @@ def _write_emerging_csv(path, rows):
     with open(path, "w", newline="", encoding="utf-8") as fh:
         out = csv.writer(fh)
         out.writerow([h.lower().replace(" ", "_") for h, _w, _v in EMERGING_COLUMNS]
-                     + ["people_text", "reason_text"] + raw)
+                     + ["people_text", "prior_firm", "reason_text"] + raw)
         for r in rows:
             out.writerow([value(r) for _h, _w, value in EMERGING_COLUMNS]
-                         + [_people_text(r), "; ".join(traction.reason_phrase(x)
+                         + [_people_text(r), ", ".join(json.loads(r["prior_firms"] or "[]")),
+                            "; ".join(traction.reason_phrase(x)
                                                        for x in json.loads(r["reasons"]))]
                          + [r[c] for c in raw])
 

@@ -30,7 +30,7 @@ def with_people(f, *people):
 def world(tmp_path, monkeypatch):
     """Managers of every kind around the default 6 to 18 month window; returns the db path."""
     for kind in ("entity_stem", "entity_tokens"):
-        monkeypatch.setitem(derive.KEY_CAPS, kind, 5)
+        monkeypatch.setitem(derive.KEY_CAPS, kind, 10)
     base = fixture("0002158817-26-000001")
     sold = {"total_amount_sold_num": 18_000_000, "n_investors": 12}
     jane = person(base, 1, "Jane", "Doe", ("Executive Officer",), middle="Q.")
@@ -53,10 +53,15 @@ def world(tmp_path, monkeypatch):
              offering={"fund_type": "Other Investment Fund", "exemptions": ("06b", "3C.7"),
                        "total_amount_sold_num": 900_000_000, "n_investors": 40}),
     ]
-    # Six funds on one entity: over the patched cap of 5, so a platform, never listed.
+    # Eleven funds on one entity: over the patched cap of 10, so a platform, never listed.
     platform = person(base, 1, "N/A", "Bigco Platform LLC", entity=True)
     funds += [with_people(lone(base, 10 + n, f"Bigco Vehicle {n} LP", ago(12), offering=sold), platform)
-              for n in range(6)]
+              for n in range(11)]
+    # A ten-fund firm, outside every window, where Jane Q. Doe was named before Heron:
+    # Heron's prior firm.
+    bigfirm = person(base, 2, "N/A", "Bigfirm Capital LLC", entity=True)
+    funds += [with_people(lone(base, 40 + n, f"Bigfirm Vehicle {n} LP", ago(40)), jane, bigfirm)
+              for n in range(10)]
     path = tmp_path / "emerging.db"
     conn = repo.connect(path)
     for f in funds:
@@ -86,7 +91,7 @@ def test_repo_keeps_the_window_and_drops_platforms(world):
     assert conn_funds["Granite Absolute Return III LP"] == 1  # new would still take it
     assert names(repo.emerging_managers(conn, TODAY, 6, 18, ["Hedge Fund"], max_funds=2)) == ["Teal Fund LP"]
     with_platform = repo.emerging_managers(conn, TODAY, 6, 18, ["Hedge Fund"], exclude_over_cap=False)
-    assert len(with_platform) == 2 + 6
+    assert len(with_platform) == 2 + 11
     assert len(repo.emerging_managers(conn, TODAY, timedelta(days=0), 36, ["Hedge Fund"])) == 4
 
 
@@ -102,7 +107,9 @@ def test_emerging_prints_best_first_with_people_and_reasons(world, capsys):
     assert ago(12) in heron[0] and "18,000,000" in heron[0] and "Houston, TX" in heron[0]
     notes = [line for line in heron if line.startswith(" " * 6) and line[6] != " "]
     assert notes[0] == "      Jane Q. Doe (Executive Officer)"
-    assert notes[1].startswith("      raised money (+25); amount raised (+15); has investors (+10)")
+    assert notes[1] == "      prior firm: Bigfirm Capital LLC"
+    assert notes[2].startswith("      raised money (+25); amount raised (+15); has investors (+10)")
+    assert "people filed earlier for a large firm" in " ".join(notes[2:])
     assert lines[second].split()[0] == "0" and "nothing raised yet (-20)" in " ".join(lines[second:-1])
     assert lines[-1].startswith("2 managers first seen ")
     assert lines[-1].endswith(", with a Hedge Fund vehicle, fewer than 20 funds, no over-cap organisations")
@@ -155,7 +162,7 @@ def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
     header = [c.value for c in ws[1]]
     assert header == ["Score", "Manager", "First seen", "Age months", "Funds", "Raised", "Investors",
                       "Amended", "Latest filing", "Types", "Exemptions", "City", "State", "Country",
-                      "People", "Reasons", "EDGAR", "Manager ID"]
+                      "People", "Prior firm", "Reasons", "EDGAR", "Manager ID"]
     heron = dict(zip(header, [c.value for c in ws[2]]))
     assert (heron["Score"], heron["Manager"], heron["Funds"], heron["Raised"], heron["Investors"]) == (
         70, "Heron Capital Management LLC", 2, 18_000_000, 12)
@@ -165,11 +172,12 @@ def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
     assert heron["Types"] == "Hedge Fund" and heron["Exemptions"] == "06c, 3C, 3C.1"
     assert heron["People"] == "Jane Q. Doe (Executive Officer)"
     assert heron["Reasons"].startswith("raised money (+25); amount raised (+15)")
-    assert ws["Q2"].hyperlink.target == ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+    assert heron["Prior firm"] == "Bigfirm Capital LLC"
+    assert ws["R2"].hyperlink.target == ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
                                          "&CIK=7000000001&type=D&dateb=&owner=include&count=40")
     [scale] = list(ws.conditional_formatting)
     assert str(scale.sqref) == "A2:A3" and scale.rules[0].type == "colorScale"  # Score is column A
-    assert ws.freeze_panes == "A2" and ws.auto_filter.ref == "A1:R3"
+    assert ws.freeze_panes == "A2" and ws.auto_filter.ref == "A1:S3"
 
     funds = wb["Funds"]
     fheader = [c.value for c in funds[1]]
@@ -189,3 +197,6 @@ def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
     assert reasons[1][2:5] == ["raised", "raised money", 25]
     about = {r[0].value: r[1].value for r in wb["About"].iter_rows() if r[0].value}
     assert about["Managers"] == 2 and about["People named"] == 1 and about["raised"] == "raised money"
+    assert about["Raised bands"] == ("1,000,000 to 5,000,000: +5; 5,000,000 to 100,000,000: +15; "
+                                     "100,000,000 to 500,000,000: +10; 500,000,000 to 2,000,000,000: -10; "
+                                     "2,000,000,000 and up: -30")
