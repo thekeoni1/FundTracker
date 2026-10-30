@@ -53,15 +53,64 @@ def upsert_filing(conn, formd):
     accession are deleted and rewritten, so a re-parse that drops a related
     person leaves no stale row. filing.loaded_at keeps its first value.
     """
-    accession = formd.accession
     with conn:
-        _upsert(conn, "filing", formd.filing, ("accession",),
-                extra={"loaded_at": _now()}, keep_on_update=("loaded_at",))
-        _upsert(conn, "offering", formd.offering, ("accession",))
-        for table, _cls, attr in CHILD_TABLES:
-            conn.execute(f"DELETE FROM {table} WHERE accession = ?", (accession,))
-            for row in getattr(formd, attr):
-                _upsert(conn, table, row, ("accession", "seq"))
+        write_filings(conn, [formd])
+
+
+def write_filings(conn, filings):
+    """Write many FormDFilings with executemany batches; return how many.
+
+    Same rules as upsert_filing, but does not commit: the caller owns the
+    transaction, so a whole quarter and its ingest_log row commit together
+    or not at all.
+    """
+    filings = list(filings)
+    if not filings:
+        return 0
+    loaded_at = _now()
+    _upsert_many(conn, "filing", [f.filing for f in filings], ("accession",),
+                 extra={"loaded_at": loaded_at}, keep_on_update=("loaded_at",))
+    _upsert_many(conn, "offering", [f.offering for f in filings], ("accession",))
+    accessions = [(f.accession,) for f in filings]
+    for table, _cls, attr in CHILD_TABLES:
+        conn.executemany(f"DELETE FROM {table} WHERE accession = ?", accessions)
+        _upsert_many(conn, table, [row for f in filings for row in getattr(f, attr)],
+                     ("accession", "seq"))
+    return len(filings)
+
+
+def accessions_present(conn, accessions):
+    """The subset of accessions already in the filing table."""
+    found = set()
+    accessions = list(accessions)
+    for i in range(0, len(accessions), 500):
+        chunk = accessions[i:i + 500]
+        marks = ", ".join("?" * len(chunk))
+        found.update(r[0] for r in conn.execute(
+            f"SELECT accession FROM filing WHERE accession IN ({marks})", chunk))
+    return found
+
+
+def log_ingest(conn, source, key, status, n_rows=None, started_at=None, finished_at=None,
+               error=None):
+    """Record the outcome of one ingestion step, replacing any earlier row. Does not commit."""
+    conn.execute(
+        """
+        INSERT INTO ingest_log (source, key, status, n_rows, started_at, finished_at, error)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (source, key) DO UPDATE SET
+            status = excluded.status, n_rows = excluded.n_rows, started_at = excluded.started_at,
+            finished_at = excluded.finished_at, error = excluded.error
+        """,
+        (source, key, status, n_rows, started_at, finished_at, error),
+    )
+
+
+def ingest_status(conn, source, key):
+    """The ingest_log row for (source, key) as a dict, or None."""
+    row = conn.execute("SELECT * FROM ingest_log WHERE source = ? AND key = ?",
+                       (source, key)).fetchone()
+    return dict(row) if row else None
 
 
 def get_filing(conn, accession):
@@ -104,18 +153,20 @@ def _now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _upsert(conn, table, obj, key, extra=None, keep_on_update=()):
-    values = {f.name: _to_sql(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
-    values.update(extra or {})
-    columns = list(values)
+def _upsert_many(conn, table, objs, key, extra=None, keep_on_update=()):
+    if not objs:
+        return
+    names = [f.name for f in dataclasses.fields(objs[0])]
+    columns = names + list(extra or {})
     updates = [c for c in columns if c not in key and c not in keep_on_update]
     sql = (
         f"INSERT INTO {table} ({', '.join(columns)}) "
-        f"VALUES ({', '.join(':' + c for c in columns)}) "
+        f"VALUES ({', '.join('?' * len(columns))}) "
         f"ON CONFLICT ({', '.join(key)}) DO "
         + (f"UPDATE SET {', '.join(f'{c} = excluded.{c}' for c in updates)}" if updates else "NOTHING")
     )
-    conn.execute(sql, values)
+    tail = tuple((extra or {}).values())
+    conn.executemany(sql, (tuple(_to_sql(getattr(o, n)) for n in names) + tail for o in objs))
 
 
 def _to_sql(value):
