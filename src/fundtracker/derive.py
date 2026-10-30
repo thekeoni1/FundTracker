@@ -133,21 +133,26 @@ def build_link_keys(conn):
     """Fill link_key with every usable key per CIK and its earliest filing date.
 
     Keys held by more CIKs than their KEY_CAPS entry are kept with over_cap
-    set. Entity and signer rows also carry a display name: the written form
-    (normalize.entity_display_name, or the signer as filed) that the CIK's
-    filings use most often for that key. Returns a dict with the rows
+    set. Entity and signer rows also carry a display name: of the written
+    forms (normalize.entity_display_name of one first, middle and last, or
+    the signer as filed) the CIK's filings give that key, the one filed most
+    often, ties to the longest. Only that one form is kept per row while
+    scanning: a count table per row held every form of 1.7 million keys and
+    ran the real run out of memory (Session 5). Returns a dict with the rows
     written and, per capped kind, how many distinct keys are over the cap.
     """
     conn.execute("DELETE FROM link_key")
     first = {}  # (kind, key, cik) -> earliest filing date
-    displays = defaultdict(lambda: defaultdict(int))  # (kind, key, cik) -> {display: rows}
+    best = {}   # (kind, key, cik) -> display rank of its best written form, see _display_rank
 
     def add(kind, key, cik, day, display=None, n=0):
         k = (kind, key, cik)
         if k not in first or (day and (first[k] is None or day < first[k])):
             first[k] = day
         if display:
-            displays[k][display] += n
+            rank = _display_rank(display, n)
+            if k not in best or rank < best[k]:
+                best[k] = rank
 
     for r in conn.execute(
             """
@@ -203,11 +208,17 @@ def build_link_keys(conn):
         log.info("%d %s keys shared by more than %d CIKs flagged over_cap", n, kind, KEY_CAPS[kind])
 
     rows = sorted((kind, key, cik, day, int((kind, key) in over),
-                   most_frequent(displays.get((kind, key, cik))))
+                   best[(kind, key, cik)][2] if (kind, key, cik) in best else None)
                   for (kind, key, cik), day in first.items())
     conn.executemany("INSERT INTO link_key (kind, key, cik, first_date, over_cap, display) "
                      "VALUES (?, ?, ?, ?, ?, ?)", rows)
     return {"rows": len(rows), "over_cap": over_cap}
+
+
+def _display_rank(display, count):
+    """Sort key that puts the most frequent name first, ties to the longest, then the first
+    in sort order. The name is the last element."""
+    return (-count, -len(display), display)
 
 
 def most_frequent(counts):
@@ -215,7 +226,7 @@ def most_frequent(counts):
     in sort order; None for no counts."""
     if not counts:
         return None
-    return min(counts.items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))[0]
+    return min(_display_rank(text, n) for text, n in counts.items())[2]
 
 
 def address_key(street1, zip_code):
@@ -304,7 +315,6 @@ def build_managers(conn):
     members_of = defaultdict(list)
     for cik in funds:
         members_of[uf.find(cik)].append(cik)
-    names = _name_counts(conn, uf)
     managers, links = [], []
     for root, ciks in members_of.items():
         ciks.sort(key=lambda c: (funds[c][0], c))
@@ -313,11 +323,12 @@ def build_managers(conn):
         # The component's first edge is the earliest evidence of any member.
         first_edge = min((evidence[c] for c in ciks if c in evidence), default=None)
         key_kind = first_edge[2].split(":", 1)[0] if first_edge else None
-        managers.append((manager_id, _display_name(names.get(root), funds[earliest][1]),
+        managers.append((manager_id, family_display_name(funds[earliest][1]),
                          key_kind, funds[earliest][0] or None, len(ciks)))
         links.extend((c, manager_id, evidence[c][2] if c in evidence else None) for c in ciks)
     conn.executemany("INSERT INTO manager VALUES (?, ?, ?, ?, ?)", sorted(managers))
     conn.executemany("INSERT INTO fund_manager VALUES (?, ?, ?)", sorted(links))
+    _set_display_names(conn)
     return len(managers)
 
 
@@ -327,27 +338,29 @@ def build_managers(conn):
 NAME_SOURCES = ("entity", "entity_over_cap", "signer")
 
 
-def _name_counts(conn, uf):
-    """root -> {source: {display name: number of member CIKs}} from entity_stem and signer keys."""
-    ciks = defaultdict(lambda: defaultdict(lambda: defaultdict(set)))
-    for r in conn.execute("SELECT kind, cik, over_cap, display FROM link_key "
-                          "WHERE kind IN ('entity_stem', 'signer') AND display IS NOT NULL"):
-        source = ("signer" if r["kind"] == "signer"
-                  else "entity_over_cap" if r["over_cap"] else "entity")
-        ciks[uf.find(r["cik"])][source][r["display"]].add(r["cik"])
-    return {root: {source: {name: len(c) for name, c in names.items()}
-                   for source, names in sources.items()}
-            for root, sources in ciks.items()}
+def _set_display_names(conn):
+    """Set each manager's display_name from link_key: the display held by the most member
+    CIKs from the first source in NAME_SOURCES that has one, ties to the longest. Managers
+    with none keep the earliest fund's family display name build_managers wrote.
 
-
-def _display_name(counts, earliest_fund_name):
-    """The most frequent entity name, else the most frequent signer, else the earliest
-    fund's name without its family tokens."""
-    for source in NAME_SOURCES:
-        names = (counts or {}).get(source)
-        if names:
-            return most_frequent(names)
-    return family_display_name(earliest_fund_name)
+    SQLite counts the CIKs per manager and name, so Python only keeps the best
+    name per manager while reading the counts.
+    """
+    best = {}  # manager_id -> (source rank, display rank)
+    for r in conn.execute(
+            """
+            SELECT fm.manager_id,
+                   CASE WHEN lk.kind = 'signer' THEN 2 WHEN lk.over_cap THEN 1 ELSE 0 END AS source,
+                   lk.display, count(DISTINCT lk.cik) AS n
+            FROM link_key lk JOIN fund_manager fm USING (cik)
+            WHERE lk.kind IN ('entity_stem', 'signer') AND lk.display IS NOT NULL
+            GROUP BY fm.manager_id, source, lk.display
+            """):
+        rank = (r["source"], _display_rank(r["display"], r["n"]))
+        if r["manager_id"] not in best or rank < best[r["manager_id"]]:
+            best[r["manager_id"]] = rank
+    conn.executemany("UPDATE manager SET display_name = ? WHERE manager_id = ?",
+                     sorted((rank[1][2], manager_id) for manager_id, rank in best.items()))
 
 
 # Launches: pooled funds first filed within LAUNCH_WINDOW_DAYS of each other
