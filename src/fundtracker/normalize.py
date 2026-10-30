@@ -27,7 +27,15 @@ FUND_FAMILY_TOKENS = frozenset(
 # placeholders above and any single letter: Trian files middle name "P.",
 # Vauban first name "NA". Display only: name_norm keeps them, so stored and
 # newly loaded rows still give the same linking keys.
-DISPLAY_FRAGMENTS = frozenset({"P", "L", "NA", "N A"})
+DISPLAY_FRAGMENTS = frozenset({"P", "L", "NA", "N A", "NONE", "NMN"})
+# Name parts that stand for "no name" in an individual's name, compared after
+# norm_text: (none), NONE, NMN and N.M.N. (no middle name), NMI, N/A. Single
+# letters are kept: in the data they are initials ("J. Derek Ramsey") or
+# abbreviated surnames ("Ben S."), not placeholders.
+PERSON_PLACEHOLDERS = frozenset({"NONE", "NMN", "NMI", "NA", "N A"})
+# A related person filed as an individual whose name holds one of these is an
+# entity ("Carne Global Fund Managers (Luxembourg) S.A."), not a person to write to.
+PERSON_ENTITY_TOKENS = frozenset("LLC LLP LP LTD LIMITED INC CORP CORPORATION GP SA SARL AG PLC".split())
 # A first-name part ending in one of these before a last-name part that does
 # not is the back half of a reversed entity name (AQR files "Management, LLC"
 # and "AQR Capital", Belltower "Ltd." and "Belltower Fund Group,").
@@ -134,9 +142,18 @@ def entity_display_name(first, middle, last):
 
 
 def person_display_name(first, middle, last):
-    """An individual's name as filed, placeholders dropped, initials kept: "Jane Q. Doe"."""
-    parts = [" ".join(p.split()) for p in (first, middle, last) if not _is_placeholder(p)]
+    """An individual's name as filed, placeholders dropped, initials kept: "Jane Q. Doe".
+
+    ("Stephan", "NMN", "Klee") gives "Stephan Klee", ("(none)", None, "Smith") "Smith".
+    """
+    parts = [" ".join(p.split()) for p in (first, middle, last)
+             if not _is_placeholder(p) and norm_text(p) not in PERSON_PLACEHOLDERS]
     return " ".join(parts) or None
+
+
+def looks_like_entity(name):
+    """True when a name filed as an individual holds an entity suffix (PERSON_ENTITY_TOKENS)."""
+    return any(t in PERSON_ENTITY_TOKENS for t in norm_text(name).split())
 
 
 def family_display_name(issuer_name):

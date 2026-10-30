@@ -616,3 +616,14 @@ def test_prior_firm_needs_the_earlier_filing_to_predate_the_manager(empty):
         repo.upsert_filing(empty, f)
     derive.run(empty)
     assert manager_row(empty, "7000000001")["prior_firms"] is None
+
+
+def test_people_skip_entities_filed_as_individuals_and_drop_placeholders(empty):
+    base = fixture("0002158817-26-000001")
+    carne = person(base, 1, "Investment Advisor", "Carne Global Fund Managers (Luxembourg) S.A.")
+    klee = person(base, 2, "Stephan", "Klee", middle="NMN")
+    f = lone(base, 1, "Kestrel Fund LP", "2025-06-02")
+    repo.upsert_filing(empty, dataclasses.replace(f, related_persons=tuple(
+        dataclasses.replace(p, accession=f.accession) for p in (carne, klee))))
+    derive.run(empty)
+    assert [p["name"] for p in json.loads(manager_row(empty, "7000000001")["people"])] == ["Stephan Klee"]

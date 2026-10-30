@@ -81,7 +81,7 @@ def main(argv=None):
     p.add_argument("--max-age", default=EMERGING_MAX_AGE, type=_age_arg, metavar="18m|540d",
                    help=f"oldest first filing (default {EMERGING_MAX_AGE})")
     p.add_argument("--type", choices=("hedge", "all"), default="hedge",
-                   help="hedge: managers with a hedge fund candidate; all: any pooled fund (default hedge)")
+                   help="hedge: managers with a Hedge Fund vehicle; all: any pooled fund (default hedge)")
     p.add_argument("--min-score", type=int, default=0, metavar="N")
     p.add_argument("--xlsx", nargs="?", const="", metavar="PATH",
                    help="also write an Excel workbook (default path "
@@ -488,7 +488,7 @@ def cmd_emerging(conn, args):
     newest = repo.age_cutoff(today, parse_age(args.min_age))
     print(f"{len(rows)} managers first seen {oldest} to {newest}"
           + (f" with score >= {args.min_score}" if args.min_score else "")
-          + (", hedge fund candidates" if args.type == "hedge" else ", every pooled fund type")
+          + (", with a Hedge Fund vehicle" if args.type == "hedge" else ", every pooled fund type")
           + f", fewer than {EMERGING_MAX_FUNDS} funds, no over-cap organisations")
     if args.xlsx is not None:
         from fundtracker import export

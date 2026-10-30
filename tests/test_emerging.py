@@ -47,6 +47,11 @@ def world(tmp_path, monkeypatch):
         # A private equity fund in the window: listed only with --type all.
         lone(base, 6, "Oakridge Buyout Fund LP", ago(10),
              offering={"fund_type": "Private Equity Fund", "total_amount_sold_num": 2_000_000}),
+        # An Other Investment Fund that the 3C rule makes a hedge fund candidate for new.
+        # emerging hedge mode wants a Hedge Fund vehicle, so it too is listed only with --type all.
+        lone(base, 7, "Granite Absolute Return III LP", ago(10),
+             offering={"fund_type": "Other Investment Fund", "exemptions": ("06b", "3C.7"),
+                       "total_amount_sold_num": 900_000_000, "n_investors": 40}),
     ]
     # Six funds on one entity: over the patched cap of 5, so a platform, never listed.
     platform = person(base, 1, "N/A", "Bigco Platform LLC", entity=True)
@@ -75,7 +80,10 @@ def test_repo_keeps_the_window_and_drops_platforms(world):
     assert [f["name"] for f in heron["funds"]] == ["Heron Master Fund LP", "Heron Offshore Fund Ltd"]
     assert heron["funds"][0]["latest_total_amount_sold"] == 18_000_000
     every = repo.emerging_managers(conn, TODAY, 6, 18)
-    assert names(every) == ["Heron Master Fund LP", "Oakridge Buyout Fund LP", "Teal Fund LP"]
+    assert names(every) == ["Granite Absolute Return III LP", "Heron Master Fund LP",
+                            "Oakridge Buyout Fund LP", "Teal Fund LP"]
+    conn_funds = {r[0]: r[1] for r in conn.execute("SELECT name, is_hedge_candidate FROM fund")}
+    assert conn_funds["Granite Absolute Return III LP"] == 1  # new would still take it
     assert names(repo.emerging_managers(conn, TODAY, 6, 18, ["Hedge Fund"], max_funds=2)) == ["Teal Fund LP"]
     with_platform = repo.emerging_managers(conn, TODAY, 6, 18, ["Hedge Fund"], exclude_over_cap=False)
     assert len(with_platform) == 2 + 6
@@ -97,14 +105,14 @@ def test_emerging_prints_best_first_with_people_and_reasons(world, capsys):
     assert notes[1].startswith("      raised money (+25); amount raised (+15); has investors (+10)")
     assert lines[second].split()[0] == "0" and "nothing raised yet (-20)" in " ".join(lines[second:-1])
     assert lines[-1].startswith("2 managers first seen ")
-    assert lines[-1].endswith(", hedge fund candidates, fewer than 20 funds, no over-cap organisations")
+    assert lines[-1].endswith(", with a Hedge Fund vehicle, fewer than 20 funds, no over-cap organisations")
     assert all(len(line) <= 110 for line in lines[:-1])  # the table; the summary line may run on
 
 
 def test_emerging_type_all_min_score_ages_and_csv(world, capsys, tmp_path):
     cli.main(["--db", world, "emerging", "--type", "all"])
     out = capsys.readouterr().out
-    assert out.splitlines()[-1].startswith("3 managers first seen ") and "runs a hedge fund" in out
+    assert out.splitlines()[-1].startswith("4 managers first seen ") and "runs a hedge fund" in out
     cli.main(["--db", world, "emerging", "--min-score", "50"])
     out = capsys.readouterr().out
     assert "Heron" in out and out.splitlines()[-1].startswith("1 managers first seen ")

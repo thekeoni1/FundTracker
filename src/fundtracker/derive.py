@@ -20,6 +20,7 @@ from fundtracker.normalize import (
     family_display_name,
     fund_family_stem,
     is_entity,
+    looks_like_entity,
     norm_text,
     person_display_name,
 )
@@ -520,7 +521,7 @@ def _people(conn):
                 yield json.dumps(list(people.values())), current
             current, people = r["manager_id"], {}
         name = person_display_name(r["first"], r["middle"], r["last"])
-        if not name or not r["name_norm"]:
+        if not name or not r["name_norm"] or looks_like_entity(name):
             continue
         roles = json.loads(r["relationships"] or "[]")
         if r["name_norm"] in people:

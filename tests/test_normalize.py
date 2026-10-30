@@ -181,3 +181,33 @@ def test_family_display_name(name, expected):
 ])
 def test_person_display_name_keeps_initials(parts, expected):
     assert n.person_display_name(*parts) == expected
+
+
+@pytest.mark.parametrize("parts, expected", [
+    (("Stephan", "NMN", "Klee"), "Stephan Klee"),
+    (("Jane", "N.M.N.", "Doe"), "Jane Doe"),
+    (("Jane", "NMI", "Doe"), "Jane Doe"),
+    (("(none)", None, "Smith"), "Smith"),
+    (("Matthew", "N/A", "Brown"), "Matthew Brown"),
+    (("Ben", None, "S."), "Ben S."),             # an abbreviated surname is kept
+    (("J.", "Derek", "Ramsey"), "J. Derek Ramsey"),  # so is a first initial
+    (("NONE", "none", "-"), None),
+])
+def test_person_display_name_drops_no_name_placeholders(parts, expected):
+    assert n.person_display_name(*parts) == expected
+
+
+def test_entity_display_name_drops_a_none_first_name():
+    assert n.entity_display_name("(none)", None, "FirstWave Fund GP, LLC") == "FirstWave Fund GP, LLC"
+
+
+@pytest.mark.parametrize("name, entity", [
+    ("Investment Advisor Carne Global Fund Managers (Luxembourg) S.A.", True),
+    ("Kestrel Partners GP", True),
+    ("Acme Holdings Limited", True),
+    ("Jane Q. Doe", False),
+    ("Gail Ltdson", False),
+    ("C. Robert Nicolls, II", False),
+])
+def test_looks_like_entity(name, entity):
+    assert n.looks_like_entity(name) is entity

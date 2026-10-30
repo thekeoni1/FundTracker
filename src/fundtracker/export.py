@@ -190,7 +190,8 @@ def write_emerging_workbook(path, managers, funds, meta):
         ("First seen from", meta["oldest"]),
         ("First seen to", meta["newest"]),
         ("Age window", f"{meta['min_age']} to {meta['max_age']} before {meta['today']}"),
-        ("Fund type", "hedge fund candidates" if meta["type"] == "hedge" else "every pooled fund type"),
+        ("Fund type", "managers with a Hedge Fund vehicle" if meta["type"] == "hedge"
+         else "every pooled fund type"),
         ("Minimum score", meta["min_score"]),
         ("Left out", f"over-cap organisations and managers with {meta['max_funds']} or more funds"),
         ("Managers", len(managers)),

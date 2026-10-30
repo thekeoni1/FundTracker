@@ -291,9 +291,9 @@ def emerging_managers(conn, today, min_age_months, max_age_months, fund_types=No
 
     Ages are months, or a timedelta for a span in days. Only managers with a
     Pooled Investment Fund are listed; fund_types (for example ["Hedge Fund"])
-    keeps those with a pooled fund of one of those types or a hedge fund
-    candidate (classify.is_hedge_candidate, which includes the 3C rule for
-    Other Investment Funds). Over-cap organisations and managers with
+    keeps those with a fund whose latest fund_type is one of them. The 3C
+    candidate rule that new uses is not applied: it let institutions' credit
+    and private equity series in (Session 7). Over-cap organisations and managers with
     max_funds or more funds are left out when asked. Each row is a dict of
     manager columns with "funds": its fund rows, oldest first, each with
     latest_total_amount_sold and latest_n_investors from its latest filing.
@@ -307,7 +307,7 @@ def emerging_managers(conn, today, min_age_months, max_age_months, fund_types=No
         params.append(max_funds)
     pooled = "f.industry_group = 'Pooled Investment Fund'"
     if fund_types:
-        pooled += f" AND (f.fund_type IN ({', '.join('?' * len(fund_types))}) OR f.is_hedge_candidate = 1)"
+        pooled += f" AND f.fund_type IN ({', '.join('?' * len(fund_types))})"
         params.extend(fund_types)
     where.append(f"EXISTS (SELECT 1 FROM fund_manager fm JOIN fund f USING (cik) "
                  f"WHERE fm.manager_id = m.manager_id AND {pooled})")
