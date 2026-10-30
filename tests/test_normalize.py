@@ -171,3 +171,13 @@ def test_entity_display_name(parts, expected):
 ])
 def test_family_display_name(name, expected):
     assert n.family_display_name(name) == expected
+
+
+@pytest.mark.parametrize("parts, expected", [
+    (("Jane", "Q.", "Doe"), "Jane Q. Doe"),
+    (("Andrew", "Cunningham", "Murtland"), "Andrew Cunningham Murtland"),
+    (("-", None, "Smith"), "Smith"),
+    (("N/A", "", None), None),
+])
+def test_person_display_name_keeps_initials(parts, expected):
+    assert n.person_display_name(*parts) == expected

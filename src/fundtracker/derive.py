@@ -21,6 +21,7 @@ from fundtracker.normalize import (
     fund_family_stem,
     is_entity,
     norm_text,
+    person_display_name,
 )
 
 log = logging.getLogger(__name__)
@@ -326,7 +327,8 @@ def build_managers(conn):
         managers.append((manager_id, family_display_name(funds[earliest][1]),
                          key_kind, funds[earliest][0] or None, len(ciks)))
         links.extend((c, manager_id, evidence[c][2] if c in evidence else None) for c in ciks)
-    conn.executemany("INSERT INTO manager VALUES (?, ?, ?, ?, ?)", sorted(managers))
+    conn.executemany("INSERT INTO manager (manager_id, display_name, key_kind, first_seen_date, n_funds) "
+                     "VALUES (?, ?, ?, ?, ?)", sorted(managers))
     conn.executemany("INSERT INTO fund_manager VALUES (?, ?, ?)", sorted(links))
     _set_display_names(conn)
     return len(managers)
@@ -361,6 +363,106 @@ def _set_display_names(conn):
             best[r["manager_id"]] = rank
     conn.executemany("UPDATE manager SET display_name = ? WHERE manager_id = ?",
                      sorted((rank[1][2], manager_id) for manager_id, rank in best.items()))
+
+
+# Manager traction (PLAN.md 7.6): what the member funds' latest filings say.
+
+# The most individual related persons kept per manager.
+MAX_PEOPLE = 8
+# EDGAR state_or_country codes that are United States states and territories.
+US_STATE_CODES = frozenset(
+    "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH "
+    "NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR VI GU AS MP".split())
+
+
+def build_manager_stats(conn):
+    """Fill the traction columns of manager from its funds' latest filings.
+
+    Run after build_managers and build_link_keys. SQLite does the sums; Python
+    only splits fund types, names the country and walks the related persons
+    one manager at a time, so memory stays flat.
+    """
+    over_cap = {r[0] for r in conn.execute(
+        """
+        SELECT DISTINCT fm.manager_id FROM link_key lk JOIN fund_manager fm USING (cik)
+        WHERE lk.over_cap = 1 AND lk.kind IN ('entity_stem', 'entity_tokens')
+        """)}
+    places = {}
+    for r in conn.execute(
+            """
+            SELECT m.manager_id, i.city, i.state_or_country, i.state_or_country_desc
+            FROM manager m JOIN fund f ON f.cik = substr(m.manager_id, 2)
+            LEFT JOIN issuer i ON i.accession = f.latest_accession AND i.is_primary = 1
+            """):
+        places[r[0]] = _place(r[1], r[2], r[3])
+    rows = []
+    for r in conn.execute(
+            """
+            SELECT fm.manager_id, sum(f.n_filings) AS n_filings,
+                   max(f.latest_filing_date) AS latest,
+                   sum(coalesce(lo.total_amount_sold_num, 0)) AS sold,
+                   sum(coalesce(lo.n_investors, 0)) AS investors,
+                   max(f.n_filings > 1 AND lf.submission_type = 'D/A') AS amended,
+                   group_concat(DISTINCT f.fund_type) AS types
+            FROM fund_manager fm JOIN fund f USING (cik)
+            LEFT JOIN offering lo ON lo.accession = f.latest_accession
+            LEFT JOIN filing lf ON lf.accession = f.latest_accession
+            GROUP BY fm.manager_id
+            """):
+        manager_id = r["manager_id"]
+        types = sorted(set((r["types"] or "").split(",")) - {""})
+        rows.append((r["n_filings"], r["latest"], r["sold"], r["investors"], int(bool(r["amended"])),
+                     int(manager_id in over_cap), json.dumps(types),
+                     *places.get(manager_id, (None, None, None)), manager_id[1:], manager_id))
+    conn.executemany(
+        """
+        UPDATE manager SET n_filings = ?, latest_filing_date = ?, total_sold = ?,
+               total_investors = ?, has_amendment = ?, is_over_cap = ?, fund_types = ?,
+               city = ?, state = ?, country = ?, edgar_cik = ?
+        WHERE manager_id = ?
+        """, rows)
+    conn.executemany("UPDATE manager SET people = ? WHERE manager_id = ?", _people(conn))
+
+
+def _place(city, code, desc):
+    """(city, state, country): state is the code for US issuers, country a readable name."""
+    if code in US_STATE_CODES:
+        return city, code, "United States"
+    country = desc or code
+    return city, None, country.title() if country else None
+
+
+def _people(conn):
+    """Yield (people JSON, manager_id) for every manager with an individual related person
+    on a member fund's latest filing: up to MAX_PEOPLE, deduped by name_norm with roles
+    merged, funds in first-filing order and persons in filing order."""
+    current, people = None, {}
+    for r in conn.execute(
+            """
+            SELECT fm.manager_id, f.cik, f.latest_accession, f.latest_filing_date,
+                   rp.first, rp.middle, rp.last, rp.name_norm, rp.relationships
+            FROM fund_manager fm JOIN fund f USING (cik)
+            JOIN related_person rp ON rp.accession = f.latest_accession
+            WHERE rp.is_entity = 0
+            ORDER BY fm.manager_id, f.first_filing_date, f.cik, rp.seq
+            """):
+        if r["manager_id"] != current:
+            if people:
+                yield json.dumps(list(people.values())), current
+            current, people = r["manager_id"], {}
+        name = person_display_name(r["first"], r["middle"], r["last"])
+        if not name or not r["name_norm"]:
+            continue
+        roles = json.loads(r["relationships"] or "[]")
+        if r["name_norm"] in people:
+            merged = people[r["name_norm"]]["roles"]
+            merged.extend(role for role in roles if role not in merged)
+        elif len(people) < MAX_PEOPLE:
+            people[r["name_norm"]] = {"name": name, "roles": roles, "cik": r["cik"],
+                                      "accession": r["latest_accession"],
+                                      "filing_date": r["latest_filing_date"]}
+    if people:
+        yield json.dumps(list(people.values())), current
 
 
 # Launches: pooled funds first filed within LAUNCH_WINDOW_DAYS of each other
@@ -569,6 +671,7 @@ def run(conn, today=None):
         keys = build_link_keys(conn)
         counts["link_key"], counts["over_cap"] = keys["rows"], keys["over_cap"]
         counts["manager"] = build_managers(conn)
+        build_manager_stats(conn)
         counts["fund_manager"] = counts["fund"]
         counts["launch"] = build_launches(conn, score=launch_scorer(conn))
         repo.log_ingest(conn, DERIVE_SOURCE, (today or date.today()).isoformat(), "ok",

@@ -482,3 +482,81 @@ def test_launch_ids_are_stable_across_runs(empty, small_entity_cap):
     derive.run(empty)
     assert launches(empty) == first
     assert [r["launch_id"] for r in first] == ["7000000001-26-000001", "7000000020-26-000001"]
+
+
+# build_manager_stats (Session 6)
+
+
+def person(base, seq, first, last, relationships=("Executive Officer",), entity=False, middle=None):
+    from fundtracker.normalize import join_name
+    return dataclasses.replace(base.related_persons[0], seq=seq, first=first, middle=middle, last=last,
+                               name_norm=join_name(first, middle, last), is_entity=entity,
+                               relationships=tuple(relationships))
+
+
+def manager_row(conn, cik):
+    return dict(conn.execute("SELECT m.* FROM manager m JOIN fund_manager fm USING (manager_id) "
+                             "WHERE fm.cik = ?", (cik,)).fetchone())
+
+
+def test_manager_stats_sum_the_latest_filings_and_list_people(empty):
+    base = fixture("0002158817-26-000001")
+    entity = person(base, 1, "N/A", "Kestrel Capital Management LLC", entity=True)
+    jane = person(base, 2, "Jane", "Doe", ("Executive Officer",), middle="Q.")
+    placeholder = person(base, 3, "-", "-")
+    first = lone(base, 1, "Kestrel Master Fund LP", "2025-06-02")
+    first = dataclasses.replace(first, related_persons=tuple(
+        dataclasses.replace(p, accession=first.accession) for p in (entity, jane, placeholder)))
+    # The first fund files a D/A later with what it has raised; the stats read that one.
+    later = variant(first, "7000000001-26-000002", filing_date="2026-02-10",
+                    offering={"total_amount_sold_num": 5_000_000, "n_investors": 4})
+    later = dataclasses.replace(later, filing=dataclasses.replace(later.filing, submission_type="D/A"))
+    second = lone(base, 2, "Kestrel Offshore Fund Ltd", "2025-07-01",
+                  offering={"total_amount_sold_num": 3_000_000, "n_investors": 6,
+                            "fund_type": "Other Investment Fund"})
+    bob = person(base, 3, "Bob", "Roe", ("Promoter",))
+    second = dataclasses.replace(second, related_persons=tuple(
+        dataclasses.replace(p, accession=second.accession)
+        for p in (entity, dataclasses.replace(jane, relationships=("Director",)), bob)))
+    for f in (first, later, second):
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+
+    m = manager_row(empty, "7000000001")
+    assert (m["n_funds"], m["n_filings"], m["latest_filing_date"]) == (2, 3, "2026-02-10")
+    assert (m["total_sold"], m["total_investors"]) == (8_000_000, 10)
+    assert m["has_amendment"] == 1 and m["is_over_cap"] == 0
+    assert json.loads(m["fund_types"]) == ["Hedge Fund", "Other Investment Fund"]
+    assert (m["state"], m["country"], m["edgar_cik"]) == ("TX", "United States", "7000000001")
+    assert m["city"] == base.issuers[0].city
+    people = json.loads(m["people"])
+    assert [(p["name"], p["roles"]) for p in people] == [
+        ("Jane Q. Doe", ["Executive Officer", "Director"]), ("Bob Roe", ["Promoter"])]
+    assert (people[0]["cik"], people[0]["accession"], people[0]["filing_date"]) == (
+        "7000000001", "7000000001-26-000002", "2026-02-10")
+
+
+def test_has_amendment_needs_the_latest_filing_to_be_an_amendment(empty):
+    base = fixture("0002158817-26-000001")
+    f = lone(base, 1, "Plover Fund LP", "2025-03-03")
+    early = variant(f, "7000000001-25-000009", filing_date="2025-01-02")
+    early = dataclasses.replace(early, filing=dataclasses.replace(early.filing, submission_type="D/A"))
+    for filing in (f, early):
+        repo.upsert_filing(empty, filing)
+    derive.run(empty)
+    m = manager_row(empty, "7000000001")
+    assert (m["n_filings"], m["has_amendment"]) == (2, 0)
+    assert m["people"] is None or json.loads(m["people"]) == []
+
+
+def test_manager_on_an_over_cap_entity_is_flagged(empty, small_entity_cap):
+    for f in series_funds(fixture("0002158817-26-000001")):
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    assert manager_row(empty, "7000000003")["is_over_cap"] == 1
+
+
+def test_foreign_issuer_gets_a_country_and_no_state():
+    assert derive._place("GEORGE TOWN", "E9", "CAYMAN ISLANDS") == ("GEORGE TOWN", None, "Cayman Islands")
+    assert derive._place("Austin", "TX", "TEXAS") == ("Austin", "TX", "United States")
+    assert derive._place(None, None, None) == (None, None, None)

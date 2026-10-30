@@ -57,6 +57,15 @@ def normalize_exemptions(exemptions):
 
 
 RULE_506 = {"06b": "506(b)", "06c": "506(c)"}
+# Display order for a merged exemption list: Rule 506 first, then the
+# Investment Company Act codes, then anything else in code order.
+EXEMPTION_ORDER = ("06b", "06c", "3C", "3C.1", "3C.7")
+
+
+def sort_exemptions(codes):
+    """codes in EXEMPTION_ORDER, then the rest sorted: ["3C", "3C.7", "06b"] -> ["06b", "3C", "3C.7"]."""
+    rank = {c: i for i, c in enumerate(EXEMPTION_ORDER)}
+    return sorted(codes, key=lambda c: (rank.get(c, len(rank)), c))
 
 
 def rule_506(exemptions):

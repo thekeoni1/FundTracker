@@ -50,7 +50,21 @@ def connect(db_path):
 # Columns added to derived tables after databases were created with them.
 # CREATE TABLE IF NOT EXISTS leaves an existing table alone, so they are added
 # here; derive fills them on its next run.
-ADDED_COLUMNS = (("link_key", "display", "TEXT"),)
+ADDED_COLUMNS = (
+    ("link_key", "display", "TEXT"),
+    ("manager", "n_filings", "INTEGER"),
+    ("manager", "latest_filing_date", "TEXT"),
+    ("manager", "total_sold", "INTEGER"),
+    ("manager", "total_investors", "INTEGER"),
+    ("manager", "has_amendment", "INTEGER"),
+    ("manager", "is_over_cap", "INTEGER"),
+    ("manager", "fund_types", "TEXT"),
+    ("manager", "city", "TEXT"),
+    ("manager", "state", "TEXT"),
+    ("manager", "country", "TEXT"),
+    ("manager", "people", "TEXT"),
+    ("manager", "edgar_cik", "TEXT"),
+)
 
 
 def _add_missing_columns(conn):

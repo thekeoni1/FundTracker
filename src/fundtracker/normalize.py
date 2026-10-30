@@ -133,6 +133,12 @@ def entity_display_name(first, middle, last):
     return " ".join(p for p in (first, middle, last) if p) or None
 
 
+def person_display_name(first, middle, last):
+    """An individual's name as filed, placeholders dropped, initials kept: "Jane Q. Doe"."""
+    parts = [" ".join(p.split()) for p in (first, middle, last) if not _is_placeholder(p)]
+    return " ".join(parts) or None
+
+
 def family_display_name(issuer_name):
     """fund_family_stem in the filer's own capitalisation: "Zephyr Master Fund, LP" -> "Zephyr"."""
     if not issuer_name:

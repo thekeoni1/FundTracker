@@ -408,7 +408,8 @@ def cmd_fund(conn, args):
     people = {}  # name_norm -> (display name, relationships, is_entity), first filing's wording
     for f in filings:
         for p in f.related_persons:
-            name = normalize.entity_display_name(p.first, p.middle, p.last) or p.name_norm
+            display = normalize.entity_display_name if p.is_entity else normalize.person_display_name
+            name = display(p.first, p.middle, p.last) or p.name_norm
             people.setdefault(p.name_norm, (name, p.relationships, p.is_entity))
     for name, relationships, entity in people.values():
         print(f"  {name}{' (entity)' if entity else ''}: {', '.join(relationships)}")

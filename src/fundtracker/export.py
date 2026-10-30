@@ -33,13 +33,9 @@ def _date(text):
 
 
 def _exemptions(funds):
-    """Every exemption code of the funds, in first-seen order."""
-    seen = []
-    for f in funds:
-        for code in json.loads(f.get("exemptions") or "[]"):
-            if code not in seen:
-                seen.append(code)
-    return seen
+    """Every exemption code of the funds, Rule 506 first (classify.sort_exemptions)."""
+    return classify.sort_exemptions({code for f in funds
+                                     for code in json.loads(f.get("exemptions") or "[]")})
 
 
 def _offering(launch):

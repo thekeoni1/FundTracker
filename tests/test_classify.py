@@ -88,3 +88,8 @@ def test_matches_pe_vc_re():
     assert not matches_pe_vc_re("Oak Credit Opportunities Fund LP")
     assert not matches_pe_vc_re("Axiaris Capital Management Fund, LP")
     assert not matches_pe_vc_re(None)
+
+
+def test_sort_exemptions_puts_rule_506_first():
+    assert classify.sort_exemptions(["3C", "3C.7", "06b"]) == ["06b", "3C", "3C.7"]
+    assert classify.sort_exemptions(["04", "3C.1", "06c", "06b"]) == ["06b", "06c", "3C.1", "04"]

@@ -205,7 +205,20 @@ CREATE TABLE IF NOT EXISTS manager (
     display_name     TEXT,
     key_kind         TEXT,               -- kind of the key that gave the cluster its first edge
     first_seen_date  TEXT,
-    n_funds          INTEGER NOT NULL
+    n_funds          INTEGER NOT NULL,
+    -- traction, from the latest filing of each member fund (derive.build_manager_stats)
+    n_filings           INTEGER,
+    latest_filing_date  TEXT,
+    total_sold          INTEGER,         -- sum of total_amount_sold_num, nulls as 0
+    total_investors     INTEGER,         -- sum of n_investors, nulls as 0
+    has_amendment       INTEGER,         -- a fund with more than one filing whose latest is D/A
+    is_over_cap         INTEGER,         -- a member fund carries an over-cap entity key
+    fund_types          TEXT,            -- JSON list of the distinct latest fund_type values
+    city                TEXT,            -- primary issuer of the earliest fund's latest filing
+    state               TEXT,
+    country             TEXT,
+    people              TEXT,            -- JSON list of individual related persons, see derive
+    edgar_cik           TEXT             -- the earliest fund's CIK
 );
 
 CREATE TABLE IF NOT EXISTS fund_manager (
