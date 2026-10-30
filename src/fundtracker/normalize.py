@@ -23,6 +23,15 @@ FUND_FAMILY_TOKENS = frozenset(
     "FUND LP LTD LLC MASTER FEEDER OFFSHORE ONSHORE CAYMAN INTERNATIONAL "
     "I II III IV V A B SERIES SPV COINVEST".split()
 )
+# Name parts left out of a display name, compared after norm_text, besides the
+# placeholders above and any single letter: Trian files middle name "P.",
+# Vauban first name "NA". Display only: name_norm keeps them, so stored and
+# newly loaded rows still give the same linking keys.
+DISPLAY_FRAGMENTS = frozenset({"P", "L", "NA", "N A"})
+# A first-name part ending in one of these before a last-name part that does
+# not is the back half of a reversed entity name (AQR files "Management, LLC"
+# and "AQR Capital", Belltower "Ltd." and "Belltower Fund Group,").
+DISPLAY_SUFFIX_TOKENS = frozenset("LLC LP LTD INC CORP".split())
 
 _MONTHS = {m: i for i, m in enumerate(
     "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(), start=1)}
@@ -95,6 +104,43 @@ def entity_stem(name):
     """Name without LLC, LP, LTD, INC, GP and THE: "Axiaris Capital Management LLC" -> "AXIARIS CAPITAL MANAGEMENT"."""
     tokens = [t for t in norm_text(name).split() if t not in ENTITY_SUFFIX_TOKENS]
     return " ".join(tokens) or None
+
+
+def _is_fragment(part):
+    if _is_placeholder(part):
+        return True
+    normalised = norm_text(part)
+    return normalised in DISPLAY_FRAGMENTS or len(normalised) == 1
+
+
+def _ends_in_suffix(part):
+    tokens = norm_text(part).split()
+    return bool(tokens) and tokens[-1] in DISPLAY_SUFFIX_TOKENS
+
+
+def entity_display_name(first, middle, last):
+    """A related person's name as the filer wrote it, for display, or None.
+
+    Placeholder and fragment parts are dropped, and reversed halves swapped
+    back: ("Management, LLC", None, "AQR Capital") gives "AQR Capital
+    Management, LLC", ("-", "P.", "Trian Fund Management, L.P.") gives
+    "Trian Fund Management, L.P.". Linking still uses entity_stem.
+    """
+    first, middle, last = (None if _is_fragment(p) else " ".join(p.split())
+                           for p in (first, middle, last))
+    if first and last and _ends_in_suffix(first) and not _ends_in_suffix(last):
+        first, last = last, first
+    return " ".join(p for p in (first, middle, last) if p) or None
+
+
+def family_display_name(issuer_name):
+    """fund_family_stem in the filer's own capitalisation: "Zephyr Master Fund, LP" -> "Zephyr"."""
+    if not issuer_name:
+        return None
+    name = re.sub(r"(?i)\bco-?invest(ment)?\b", "COINVEST", issuer_name)
+    words = [w for w in name.split()
+             if norm_text(w) and not set(norm_text(w).split()) <= FUND_FAMILY_TOKENS]
+    return " ".join(words).strip(" ,") or " ".join(issuer_name.split())
 
 
 def fund_family_stem(issuer_name):

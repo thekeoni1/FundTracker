@@ -196,7 +196,8 @@ CREATE TABLE IF NOT EXISTS link_key (
     key         TEXT NOT NULL,
     cik         TEXT NOT NULL,
     first_date  TEXT,            -- earliest filing of this CIK that carries the key
-    over_cap    INTEGER NOT NULL DEFAULT 0   -- held by more CIKs than derive.KEY_CAPS allows
+    over_cap    INTEGER NOT NULL DEFAULT 0,  -- held by more CIKs than derive.KEY_CAPS allows
+    display     TEXT             -- entity and signer keys: the name as this CIK's filings most often write it
 );                               -- one row per (kind, key, cik); derive writes each once
 
 CREATE TABLE IF NOT EXISTS manager (

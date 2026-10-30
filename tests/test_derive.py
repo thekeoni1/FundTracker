@@ -258,7 +258,7 @@ def test_three_funds_sharing_an_entity_related_person_are_one_manager(empty):
     assert ids == {"m7000000002"}  # the member with the earliest first filing
     m = repo.get_manager(empty, "m7000000002")
     assert (m["n_funds"], m["first_seen_date"], m["key_kind"]) == (3, "2026-01-15", "entity_stem")
-    assert m["display_name"] == "AXIARIS CAPITAL MANAGEMENT"
+    assert m["display_name"] == "Axiaris Capital Management LLC"
     assert [f["cik"] for f in m["funds"]] == ["7000000002", "7000000001", "7000000003"]
     assert m["funds"][1]["evidence"].startswith("entity_")
 
@@ -278,7 +278,7 @@ def test_a_fund_with_no_shared_key_is_its_own_manager(conn):
     derive.run(conn)
     m = repo.get_manager(conn, "m0002158817")
     assert (m["n_funds"], m["key_kind"]) == (1, None)
-    assert m["display_name"] == "AXIARIS CAPITAL MANAGEMENT"  # its own entity related person
+    assert m["display_name"] == "Axiaris Capital Management LLC"  # its own entity related person
     assert repo.get_fund(conn, "2158817")["evidence"] is None
 
 
@@ -384,3 +384,27 @@ def test_shared_signer_phone_or_address_do_not_link_managers(empty):
 ])
 def test_service_provider_stems_are_skipped(stem, usable):
     assert derive._usable_stem(stem) is usable
+
+
+def test_manager_display_name_falls_back_to_signer_then_fund_name(empty):
+    base = fixture("0002158817-26-000001")
+    signed = lone(base, 1, "Kestrel Master Fund, LP", "2026-05-01")
+    sig = dataclasses.replace(signed.signatures[0], signer="Jane  Q. Kestrel", signer_norm="JANE Q KESTREL")
+    repo.upsert_filing(empty, dataclasses.replace(signed, signatures=(sig,)))
+    unsigned = lone(base, 2, "Osprey Offshore Fund, Ltd.", "2026-05-01")
+    repo.upsert_filing(empty, dataclasses.replace(unsigned, signatures=()))
+    derive.run(empty)
+    assert repo.get_manager(empty, "m7000000001")["display_name"] == "Jane Q. Kestrel"
+    assert repo.get_manager(empty, "m7000000002")["display_name"] == "Osprey"
+
+
+def test_manager_display_name_repairs_reversed_entity_names(empty):
+    # The fixture files "Management, LLC" + "AQR Capital" and "Management GP
+    # Ltd." + "AQR Capital". Both reduce to one stem, once each, so the tie
+    # goes to the longer repaired name.
+    repo.upsert_filing(empty, fixture("0001635511-15-000001"))
+    derive.run(empty)
+    assert dict(empty.execute("SELECT key, display FROM link_key WHERE cik = '0001635511' "
+                              "AND kind = 'entity_stem'").fetchall()) == {
+        "MANAGEMENT AQR CAPITAL": "AQR Capital Management GP Ltd."}
+    assert repo.get_manager(empty, "m0001635511")["display_name"] == "AQR Capital Management GP Ltd."

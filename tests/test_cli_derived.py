@@ -51,7 +51,7 @@ def test_new_lists_hedge_launches_best_first(derived, capsys):
     assert len(body) == 3  # Axiaris, Arrogate and Callodine are the October hedge launches
     top = body[0]
     assert top.startswith("2026-10-28  Axiaris Capital Management Fund, ~")
-    assert "AXIARIS CAPITAL MANAGEMENT" in top and "06c,3C,3C.1" in top and "TX" in top
+    assert "Axiaris Capital Management" in top and "06c,3C,3C.1" in top and "TX" in top
     assert "new_manager single_filing" in top
     assert top.endswith("https://www.sec.gov/Archives/edgar/data/2158817/000215881726000001/")
     assert lines[-1] == "3 launches since 2026-10-01, Hedge Fund only"
@@ -105,7 +105,7 @@ def test_fund_shows_filings_people_signers_and_links(derived, capsys):
 def test_manager_lists_its_funds(derived, capsys):
     assert cli.main(["--db", derived, "manager", "m0001635511"]) == 0
     out = capsys.readouterr().out
-    assert out.startswith("MANAGEMENT AQR CAPITAL (m0001635511), first seen 2015-06-15, 1 funds")
+    assert out.startswith("AQR Capital Management GP Ltd. (m0001635511), first seen 2015-06-15, 1 funds")
     assert "AQR OFFSHORE MULTI-STRATEGY FUND XIV" in out
     assert cli.main(["--db", derived, "manager", "m1"]) == 1
 

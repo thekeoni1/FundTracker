@@ -43,7 +43,20 @@ def connect(db_path):
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    _add_missing_columns(conn)
     return conn
+
+
+# Columns added to derived tables after databases were created with them.
+# CREATE TABLE IF NOT EXISTS leaves an existing table alone, so they are added
+# here; derive fills them on its next run.
+ADDED_COLUMNS = (("link_key", "display", "TEXT"),)
+
+
+def _add_missing_columns(conn):
+    for table, column, decl in ADDED_COLUMNS:
+        if column not in {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 def upsert_filing(conn, formd):

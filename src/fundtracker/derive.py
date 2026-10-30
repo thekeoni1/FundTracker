@@ -14,7 +14,14 @@ from datetime import date, datetime, timezone
 
 from fundtracker import classify, normalize
 from fundtracker.db import repo
-from fundtracker.normalize import entity_stem, fund_family_stem, is_entity, norm_text
+from fundtracker.normalize import (
+    entity_display_name,
+    entity_stem,
+    family_display_name,
+    fund_family_stem,
+    is_entity,
+    norm_text,
+)
 
 log = logging.getLogger(__name__)
 
@@ -126,28 +133,35 @@ def build_link_keys(conn):
     """Fill link_key with every usable key per CIK and its earliest filing date.
 
     Keys held by more CIKs than their KEY_CAPS entry are kept with over_cap
-    set. Returns a dict with the rows written and, per capped kind, how many
-    distinct keys are over the cap.
+    set. Entity and signer rows also carry a display name: the written form
+    (normalize.entity_display_name, or the signer as filed) that the CIK's
+    filings use most often for that key. Returns a dict with the rows
+    written and, per capped kind, how many distinct keys are over the cap.
     """
     conn.execute("DELETE FROM link_key")
     first = {}  # (kind, key, cik) -> earliest filing date
+    displays = defaultdict(lambda: defaultdict(int))  # (kind, key, cik) -> {display: rows}
 
-    def add(kind, key, cik, day):
+    def add(kind, key, cik, day, display=None, n=0):
         k = (kind, key, cik)
         if k not in first or (day and (first[k] is None or day < first[k])):
             first[k] = day
+        if display:
+            displays[k][display] += n
 
     for r in conn.execute(
             """
-            SELECT f.cik, rp.name_norm, min(f.filing_date) AS day
+            SELECT f.cik, rp.name_norm, rp.first, rp.middle, rp.last,
+                   min(f.filing_date) AS day, count(*) AS n
             FROM related_person rp JOIN filing f USING (accession)
             WHERE rp.is_entity = 1
-            GROUP BY f.cik, rp.name_norm
+            GROUP BY f.cik, rp.name_norm, rp.first, rp.middle, rp.last
             """):
         stem = entity_stem(r["name_norm"])
         if _usable_stem(stem):
-            add("entity_stem", stem, r["cik"], r["day"])
-            add("entity_tokens", entity_tokens(stem), r["cik"], r["day"])
+            display = entity_display_name(r["first"], r["middle"], r["last"])
+            add("entity_stem", stem, r["cik"], r["day"], display, r["n"])
+            add("entity_tokens", entity_tokens(stem), r["cik"], r["day"], display, r["n"])
 
     # Every name each CIK has filed under, to skip a fund signing as itself.
     own_names = defaultdict(set)
@@ -155,15 +169,15 @@ def build_link_keys(conn):
         own_names[r["cik"]].add(norm_text(r["entity_name"]))
     for r in conn.execute(
             """
-            SELECT f.cik, s.signer_norm, min(f.filing_date) AS day
+            SELECT f.cik, s.signer_norm, s.signer, min(f.filing_date) AS day, count(*) AS n
             FROM signature s JOIN filing f USING (accession)
-            GROUP BY f.cik, s.signer_norm
+            GROUP BY f.cik, s.signer_norm, s.signer
             """):
         signer = r["signer_norm"]
         if (not _usable(signer) or signer in own_names[r["cik"]]
                 or is_entity(signer, None, signer)):
             continue
-        add("signer", signer, r["cik"], r["day"])
+        add("signer", signer, r["cik"], r["day"], " ".join((r["signer"] or "").split()), r["n"])
 
     for r in conn.execute(
             """
@@ -188,11 +202,20 @@ def build_link_keys(conn):
     for kind, n in over_cap.items():
         log.info("%d %s keys shared by more than %d CIKs flagged over_cap", n, kind, KEY_CAPS[kind])
 
-    rows = sorted((kind, key, cik, day, int((kind, key) in over))
+    rows = sorted((kind, key, cik, day, int((kind, key) in over),
+                   most_frequent(displays.get((kind, key, cik))))
                   for (kind, key, cik), day in first.items())
-    conn.executemany("INSERT INTO link_key (kind, key, cik, first_date, over_cap) "
-                     "VALUES (?, ?, ?, ?, ?)", rows)
+    conn.executemany("INSERT INTO link_key (kind, key, cik, first_date, over_cap, display) "
+                     "VALUES (?, ?, ?, ?, ?, ?)", rows)
     return {"rows": len(rows), "over_cap": over_cap}
+
+
+def most_frequent(counts):
+    """The key of {text: count} with the highest count, ties to the longest, then the first
+    in sort order; None for no counts."""
+    if not counts:
+        return None
+    return min(counts.items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))[0]
 
 
 def address_key(street1, zip_code):
@@ -298,22 +321,33 @@ def build_managers(conn):
     return len(managers)
 
 
+# Where a manager's display name comes from, in order of preference: entity
+# related persons under the cap, then over the cap (an AQR series fund whose
+# only entity is AQR itself), then signers.
+NAME_SOURCES = ("entity", "entity_over_cap", "signer")
+
+
 def _name_counts(conn, uf):
-    """root -> {kind: {key: number of member CIKs}} for entity_stem and signer keys."""
-    counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-    for r in conn.execute("SELECT kind, key, cik FROM link_key "
-                          "WHERE kind IN ('entity_stem', 'signer') AND over_cap = 0"):
-        counts[uf.find(r["cik"])][r["kind"]][r["key"]] += 1
-    return counts
+    """root -> {source: {display name: number of member CIKs}} from entity_stem and signer keys."""
+    ciks = defaultdict(lambda: defaultdict(lambda: defaultdict(set)))
+    for r in conn.execute("SELECT kind, cik, over_cap, display FROM link_key "
+                          "WHERE kind IN ('entity_stem', 'signer') AND display IS NOT NULL"):
+        source = ("signer" if r["kind"] == "signer"
+                  else "entity_over_cap" if r["over_cap"] else "entity")
+        ciks[uf.find(r["cik"])][source][r["display"]].add(r["cik"])
+    return {root: {source: {name: len(c) for name, c in names.items()}
+                   for source, names in sources.items()}
+            for root, sources in ciks.items()}
 
 
 def _display_name(counts, earliest_fund_name):
-    """Most frequent entity stem, else most frequent signer, else the earliest fund's family stem."""
-    for kind in ("entity_stem", "signer"):
-        keys = (counts or {}).get(kind)
-        if keys:
-            return min(keys.items(), key=lambda kv: (-kv[1], kv[0]))[0]
-    return fund_family_stem(earliest_fund_name)
+    """The most frequent entity name, else the most frequent signer, else the earliest
+    fund's name without its family tokens."""
+    for source in NAME_SOURCES:
+        names = (counts or {}).get(source)
+        if names:
+            return most_frequent(names)
+    return family_display_name(earliest_fund_name)
 
 
 # Launches: a manager's pooled funds first filed within LAUNCH_WINDOW_DAYS.

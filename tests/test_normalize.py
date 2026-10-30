@@ -144,3 +144,30 @@ def test_address_key(street, zip_code, expected):
 ])
 def test_street2(street1, street2, expected):
     assert n.street2(street1, street2) == expected
+
+
+@pytest.mark.parametrize("parts, expected", [
+    (("Management, LLC", None, "AQR Capital"), "AQR Capital Management, LLC"),
+    (("Management II, LLC", None, "AQR Capital"), "AQR Capital Management II, LLC"),
+    (("Ltd.", None, "Belltower Fund Group,"), "Belltower Fund Group, Ltd."),
+    (("-", "P.", "Trian Fund Management, L.P."), "Trian Fund Management, L.P."),
+    (("NA", None, "Vauban Capital GP LLC"), "Vauban Capital GP LLC"),
+    (("n/a", None, "AQR Capital Management, LLC"), "AQR Capital Management, LLC"),
+    (("Axiaris Capital Management", None, "LLC"), "Axiaris Capital Management LLC"),
+    (("Acme  Partners", "", "GP, L.P."), "Acme Partners GP, L.P."),
+    (("Andrew", "Cunningham", "Murtland"), "Andrew Cunningham Murtland"),
+    (("-", None, None), None),
+])
+def test_entity_display_name(parts, expected):
+    assert n.entity_display_name(*parts) == expected
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("Axiaris Capital Management Fund, LP", "Axiaris Capital Management"),
+    ("Zephyr Offshore Fund Ltd.", "Zephyr"),
+    ("Oak Co-Invest Fund II, L.P.", "Oak"),
+    ("Master Fund LP", "Master Fund LP"),
+    (None, None),
+])
+def test_family_display_name(name, expected):
+    assert n.family_display_name(name) == expected
