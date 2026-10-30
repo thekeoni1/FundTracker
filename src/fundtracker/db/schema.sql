@@ -241,6 +241,8 @@ CREATE TABLE IF NOT EXISTS launch (
     newness_reasons  TEXT NOT NULL DEFAULT '[]'
 );
 
+-- search_index (FTS5) is created by repo.rebuild_search_index when derive runs.
+
 CREATE TABLE IF NOT EXISTS review (
     launch_id   TEXT PRIMARY KEY,        -- a launch_id, or a CIK for a fund-level note
     status      TEXT NOT NULL DEFAULT 'new',   -- new, reviewed, watching, contacted, ignore

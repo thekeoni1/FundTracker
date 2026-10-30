@@ -827,6 +827,7 @@ def run(conn, today=None):
         build_manager_stats(conn)
         counts["fund_manager"] = counts["fund"]
         counts["launch"] = build_launches(conn, score=launch_scorer(conn))
+        counts["search_index"] = repo.rebuild_search_index(conn)
         repo.log_ingest(conn, DERIVE_SOURCE, (today or date.today()).isoformat(), "ok",
                         n_rows=counts["launch"], started_at=started, finished_at=_now())
     return counts

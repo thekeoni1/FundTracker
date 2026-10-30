@@ -7,6 +7,7 @@ fields, which schema.sql mirrors (a test checks they agree).
 
 import dataclasses
 import json
+import re
 import sqlite3
 import types
 import typing
@@ -596,26 +597,108 @@ def person_name(conn, name_norm):
     return " ".join(r["signer"].split()) if r and r["signer"] else None
 
 
+# search_index: FTS5 over fund names, manager display names and related person
+# names, rebuilt by derive. It is created here rather than in schema.sql so a
+# Python build without FTS5 still opens the database; search then falls back
+# to LIKE, as it does on a database derive has not yet indexed. Rows go in
+# in the order search shows them (funds newest first, managers newest first,
+# people most filings first), so a query ordered by rowid stops at its limit
+# instead of sorting every match; sort keeps the value that order came from.
+SEARCH_INDEX_COLUMNS = ("kind, id UNINDEXED, name, sort UNINDEXED, "
+                        "tokenize = 'unicode61 remove_diacritics 2'")
+
+
+def has_fts5(conn):
+    return "ENABLE_FTS5" in {r[0] for r in conn.execute("PRAGMA compile_options")}
+
+
+def rebuild_search_index(conn, schema="main"):
+    """Drop and refill search_index from fund, manager and related_person; return its rows,
+    or None without FTS5. Does not commit."""
+    if not has_fts5(conn):
+        return None
+    table = f"{schema}.search_index"
+    conn.execute(f"DROP TABLE IF EXISTS {table}")
+    conn.execute(f"CREATE VIRTUAL TABLE {table} USING fts5({SEARCH_INDEX_COLUMNS})")
+    for select in (
+            "SELECT 'fund', cik, name, first_filing_date FROM fund WHERE name <> '' "
+            "ORDER BY first_filing_date DESC, cik",
+            "SELECT 'manager', manager_id, display_name, first_seen_date FROM manager "
+            "WHERE display_name <> '' ORDER BY first_seen_date DESC, manager_id",
+            "SELECT 'person', name_norm, name_norm, count(*) AS n FROM related_person "
+            "WHERE name_norm <> '' GROUP BY name_norm ORDER BY n DESC, name_norm"):
+        conn.execute(f"INSERT INTO {table} (kind, id, name, sort) {select}")
+    return conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+
+
+def _fts_query(text):
+    """Every word of text as a prefix of a word in name, all required:
+    'howe cap' -> 'name : "howe"* AND name : "cap"*'. None when text has no letters or digits."""
+    words = re.findall(r"[^\W_]+", text or "")
+    return " AND ".join(f'name : "{w}"*' for w in words) or None
+
+
+def _index_rows(conn, match, kind, order, limit):
+    return conn.execute(
+        f"SELECT id, name, sort FROM search_index WHERE search_index MATCH ? "
+        f"ORDER BY {order} LIMIT ?", (f"kind : {kind} AND {match}", limit)).fetchall()
+
+
+def _search_indexed(conn, text, fn):
+    """fn(match) on the search index, or None when there is no usable index."""
+    match = _fts_query(text)
+    if match is None:
+        return None
+    try:
+        return fn(match)
+    except sqlite3.OperationalError:  # no search_index yet, or no FTS5 in this build
+        return None
+
+
 def search(conn, text, limit=50):
-    """Funds, managers and people whose names contain text, up to limit of each.
+    """Funds, managers and people whose names match text, up to limit of each.
 
     Returns {"funds": [...], "managers": [...], "people": [...]}: fund rows
     with manager_id, newest first; manager rows, newest first; and people as
-    name_norm with n_filings, most filings first. The people query reads only the
-    name_norm index, which keeps it near a third of a second on three million rows.
+    name_norm with n_filings, most filings first. Every word of text matches
+    the start of a word in the name, through search_index; without the index,
+    text matches anywhere in the name through LIKE.
     """
+    def indexed(match):
+        fund_ids = [r["id"] for r in _index_rows(conn, match, "fund", "rowid", limit)]
+        manager_ids = [r["id"] for r in _index_rows(conn, match, "manager", "rowid", limit)]
+        people = _index_rows(conn, match, "person", "rowid", limit)
+        return {"funds": _by_ids(conn, FUND_SEARCH_SQL, "f.cik", fund_ids, "f.first_filing_date DESC, f.cik"),
+                "managers": _by_ids(conn, MANAGER_SEARCH_SQL, "manager_id", manager_ids,
+                                    "first_seen_date DESC, manager_id"),
+                "people": [{"name_norm": r["id"], "n_filings": r["sort"]} for r in people]}
+
+    return _search_indexed(conn, text, indexed) or _search_like(conn, text, limit)
+
+
+FUND_SEARCH_SQL = """
+    SELECT f.cik, f.name, f.fund_type, f.first_filing_date, f.state, fm.manager_id
+    FROM fund f LEFT JOIN fund_manager fm USING (cik)"""
+MANAGER_SEARCH_SQL = """
+    SELECT manager_id, display_name, first_seen_date, n_funds, city, state, country FROM manager"""
+
+
+def _by_ids(conn, sql, column, ids, order):
+    marks = ", ".join("?" * len(ids))
+    return [dict(r) for r in conn.execute(f"{sql} WHERE {column} IN ({marks}) ORDER BY {order}", ids)]
+
+
+def _search_like(conn, text, limit):
     p = _like_pattern(text)
     funds = conn.execute(
-        """
-        SELECT f.cik, f.name, f.fund_type, f.first_filing_date, f.state, fm.manager_id
-        FROM fund f LEFT JOIN fund_manager fm USING (cik)
+        f"""{FUND_SEARCH_SQL}
         WHERE f.name LIKE ? ESCAPE '!' ORDER BY f.first_filing_date DESC, f.cik LIMIT ?
         """, (p, limit)).fetchall()
     managers = conn.execute(
-        """
-        SELECT manager_id, display_name, first_seen_date, n_funds, city, state, country FROM manager
+        f"""{MANAGER_SEARCH_SQL}
         WHERE display_name LIKE ? ESCAPE '!' ORDER BY first_seen_date DESC, manager_id LIMIT ?
         """, (p, limit)).fetchall()
+    # The people query reads only the name_norm index, about a third of a second on three million rows.
     people = conn.execute(
         """
         SELECT name_norm, count(*) AS n_filings FROM related_person
@@ -636,7 +719,26 @@ def search_names(conn, text, limit=50):
 
     Returns up to limit dicts with kind (fund, manager or person), id (a CIK
     or manager_id), name and, for persons, the CIK of a fund they appear on.
+    Managers come first, then funds, then persons, each by name. Matching is
+    as for search.
     """
+    def indexed(match):
+        rows = []
+        for kind in ("manager", "fund", "person"):
+            for r in _index_rows(conn, match, kind, "name", limit - len(rows)):
+                cik = conn.execute(
+                    "SELECT min(f.cik) FROM related_person rp JOIN filing f USING (accession) "
+                    "WHERE rp.name_norm = ?", (r["id"],)).fetchone()[0] if kind == "person" else None
+                rows.append({"kind": kind, "id": r["id"], "name": r["name"], "cik": cik})
+            if len(rows) >= limit:
+                break
+        return rows
+
+    rows = _search_indexed(conn, text, indexed)
+    return rows if rows is not None else _search_names_like(conn, text, limit)
+
+
+def _search_names_like(conn, text, limit):
     pattern = _like_pattern(text)
     rows = conn.execute(
         """
