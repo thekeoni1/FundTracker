@@ -1,3 +1,5 @@
+import io
+
 import pytest
 import requests
 
@@ -27,6 +29,7 @@ def make_response(status, body=b"{}", headers=None):
     response = requests.Response()
     response.status_code = status
     response._content = body
+    response.raw = io.BytesIO(body)
     response.headers.update(headers or {})
     response.url = URL
     return response
@@ -197,3 +200,8 @@ def test_user_agent_read_from_env_file(monkeypatch, tmp_path):
     monkeypatch.delenv("FUNDTRACKER_USER_AGENT", raising=False)
     monkeypatch.setattr(config, "_ENV_FILE_VALUES", config._read_env_file(env_file))
     assert config.user_agent() == "File Co file@fileco.com"
+
+
+def test_stream_flag_is_passed_through(client, server):
+    client.get(URL, stream=True)
+    assert server.calls[0]["kwargs"]["stream"] is True

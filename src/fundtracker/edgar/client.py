@@ -104,18 +104,19 @@ class EdgarClient:
             }
         )
 
-    def get(self, url):
+    def get(self, url, stream=False):
         """GET url, retrying 403, 429, 5xx and connection errors.
 
         Returns the requests.Response for any other status, including 404, so
         callers can treat a missing daily index as data rather than failure.
-        Raises EdgarHTTPError once max_tries attempts have all failed.
+        Raises EdgarHTTPError once max_tries attempts have all failed. With
+        stream=True the body is not read yet; the caller iterates and closes it.
         """
         last_status = last_error = None
         for attempt in range(1, self.max_tries + 1):
             self.limiter.acquire()
             try:
-                response = self.session.get(url, timeout=self.timeout)
+                response = self.session.get(url, timeout=self.timeout, stream=stream)
             except (requests.ConnectionError, requests.Timeout) as exc:
                 last_status, last_error = None, exc
                 retry_after = None
@@ -124,6 +125,7 @@ class EdgarClient:
                     return response
                 last_status, last_error = response.status_code, None
                 retry_after = _retry_after_seconds(response)
+                response.close()
             if attempt == self.max_tries:
                 break
             delay = self.backoff_base * 2 ** (attempt - 1)
