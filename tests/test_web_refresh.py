@@ -154,7 +154,7 @@ def test_serve_runs_the_site_on_localhost_against_the_given_database(db_path, mo
         seen["page"] = app.test_client().get("/launches").status_code
 
     monkeypatch.setattr(Flask, "run", run)
-    assert cli.main(["--db", str(db_path), "serve", "--port", "8123"]) == 0
+    assert cli.main(["--db", str(db_path), "serve", "--port", "8123", "--no-refresh"]) == 0
     assert seen == {"host": "127.0.0.1", "port": 8123, "debug": False, "threaded": True,
                     "use_reloader": False, "page": 200}
     assert capsys.readouterr().out.startswith("FundTracker on http://127.0.0.1:8123/ (database ")

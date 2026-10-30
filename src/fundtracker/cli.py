@@ -5,6 +5,8 @@
     ingest catchup [--until 2026-10-28]      load every weekday not yet loaded
     stats [--quarter 2026q3]                 what the database holds
     derive                                   rebuild funds, managers and launches
+    refresh                                  ingest catchup, then derive (what the site's
+                                             Refresh button and the scheduled task run)
     new [--since 7d] [--min-score N] [--type hedge|all] [--xlsx [PATH]] [--csv PATH]
                                              launches since a date, best score first
     emerging [--min-age 6m] [--max-age 18m] [--type hedge|all] [--min-score N]
@@ -12,7 +14,8 @@
     fund <cik>                               a fund's filings, people and EDGAR links
     manager <id>                             a manager's funds over time
     search "<text>"                          local search over funds, managers, people
-    serve [--host 127.0.0.1] [--port 8000]   the local site
+    serve [--host 127.0.0.1] [--port 8000] [--no-refresh]
+                                             the local site; refreshes first when stale
 """
 
 import argparse
@@ -63,6 +66,9 @@ def main(argv=None):
     p = sub.add_parser("derive", help="rebuild the derived fund, manager and launch tables")
     p.set_defaults(func=cmd_derive)
 
+    p = sub.add_parser("refresh", help="ingest catchup, then derive: the site's Refresh job")
+    p.set_defaults(func=cmd_refresh)
+
     p = sub.add_parser("new", help="launches first filed since a date, best newness score first")
     p.add_argument("--since", default="7d", type=_since_arg, metavar="7d|30d|YYYY-MM-DD",
                    help="days back from today, or a date (default 7d)")
@@ -105,6 +111,8 @@ def main(argv=None):
     p = sub.add_parser("serve", help="run the local site (Launches, Emerging, Refresh)")
     p.add_argument("--host", default="127.0.0.1", help="address to bind (default 127.0.0.1, this machine only)")
     p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--no-refresh", action="store_true",
+                   help="do not start a refresh when the last daily day is before the previous weekday")
     p.set_defaults(func=cmd_serve)
 
     args = parser.parse_args(argv)
@@ -138,11 +146,7 @@ def cmd_backfill(conn, args):
     return 1 if failed else 0
 
 
-def previous_weekday(today=None):
-    day = (today or date.today()) - timedelta(days=1)
-    while day.weekday() >= 5:
-        day -= timedelta(days=1)
-    return day
+previous_weekday = ingest.previous_weekday
 
 
 def _progress_to_stdout(args):
@@ -247,6 +251,20 @@ def cmd_derive(conn, args):
     print(f"{counts['fund']:,} funds, {counts['manager']:,} managers, {counts['launch']:,} launches, "
           f"{counts['link_key']:,} link keys ({over} over the cap), "
           f"in {time.monotonic() - started:.0f}s")
+    return 0
+
+
+def cmd_refresh(conn, args):
+    from fundtracker.edgar.client import EdgarClient
+    from fundtracker.web import jobs
+
+    started = time.monotonic()
+    try:
+        jobs.run_refresh(conn, EdgarClient(), lambda line: print(f"{datetime.now():%H:%M:%S} {line}"))
+    except RuntimeError as exc:
+        print(f"failed: {exc}")
+        return 1
+    print(f"refresh done in {time.monotonic() - started:.0f}s")
     return 0
 
 
@@ -603,8 +621,12 @@ def cmd_serve(conn, args):
     from fundtracker.web.app import create_app
 
     path = conn.execute("PRAGMA database_list").fetchone()["file"]
-    app = create_app(connect=lambda: repo.connect_readonly(path),
-                     refresher=jobs.Refresher(jobs.refresh_runner(path)))
+    refresher = jobs.Refresher(jobs.refresh_runner(path))
+    app = create_app(connect=lambda: repo.connect_readonly(path), refresher=refresher)
+    if not args.no_refresh and jobs.is_stale(conn):
+        refresher.start()
+        print(f"last daily day {repo.last_ingest_key(conn, ingest.DAILY_SOURCE) or 'none'} is before "
+              f"{previous_weekday()}: refreshing in the background (--no-refresh skips this)")
     print(f"FundTracker on http://{args.host}:{args.port}/ (database {path}); Ctrl+C stops it")
     app.run(host=args.host, port=args.port, debug=False, threaded=True, use_reloader=False)
     return 0

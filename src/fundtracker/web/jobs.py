@@ -69,35 +69,55 @@ class Refresher:
 
 
 def refresh_runner(db_path):
-    """The real job: catchup from EDGAR's daily index, then derive, on its own connection."""
+    """The real job: run_refresh on its own connection with the live EDGAR client."""
 
     def run(log):
         from fundtracker.edgar.client import EdgarClient
 
-        progress = logging.getLogger("fundtracker.ingest")
-        handler = _LineHandler(log)
-        level = progress.level
-        progress.addHandler(handler)
-        progress.setLevel(logging.INFO)
         conn = repo.connect(db_path)
         try:
-            log("catchup: loading every weekday not yet loaded")
-            results = ingest.catchup(conn, EdgarClient())
-            failed = [r for r in results if r.status == "error"]
-            log(f"catchup: {len(results)} days fetched, {sum(r.loaded for r in results)} filings loaded, "
-                f"{len(failed)} days failed")
-            log("derive: rebuilding funds, managers and launches (about four minutes)")
-            counts = derive.run(conn)
-            log(f"derive: {counts['fund']:,} funds, {counts['manager']:,} managers, "
-                f"{counts['launch']:,} launches")
-            if failed:
-                raise RuntimeError(f"catchup failed on {', '.join(str(r.day) for r in failed)}")
+            run_refresh(conn, EdgarClient(), log)
         finally:
             conn.close()
-            progress.removeHandler(handler)
-            progress.setLevel(level)
 
     return run
+
+
+def run_refresh(conn, client, log):
+    """Catchup from EDGAR's daily index, then derive, logging each step through log.
+
+    The one code path behind the site's Refresh button, fundtracker refresh
+    and the scheduled task. Raises RuntimeError after derive if any day failed.
+    """
+    progress = logging.getLogger("fundtracker.ingest")
+    handler = _LineHandler(log)
+    level = progress.level
+    progress.addHandler(handler)
+    progress.setLevel(logging.INFO)
+    try:
+        log("catchup: loading every weekday not yet loaded")
+        results = ingest.catchup(conn, client)
+        failed = [r for r in results if r.status == "error"]
+        log(f"catchup: {len(results)} days fetched, {sum(r.loaded for r in results)} filings loaded, "
+            f"{len(failed)} days failed")
+        log("derive: rebuilding funds, managers and launches (about four minutes)")
+        counts = derive.run(conn)
+        log(f"derive: {counts['fund']:,} funds, {counts['manager']:,} managers, "
+            f"{counts['launch']:,} launches")
+        if failed:
+            raise RuntimeError(f"catchup failed on {', '.join(str(r.day) for r in failed)}")
+    finally:
+        progress.removeHandler(handler)
+        progress.setLevel(level)
+
+
+def is_stale(conn, today=None):
+    """True when the last daily day loaded (ok or no_index) is before the previous weekday.
+
+    Holidays count as current once catchup has logged them no_index.
+    """
+    last = repo.last_ingest_key(conn, ingest.DAILY_SOURCE)
+    return last is None or last < ingest.previous_weekday(today).isoformat()
 
 
 class _LineHandler(logging.Handler):

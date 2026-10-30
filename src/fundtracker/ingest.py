@@ -180,6 +180,14 @@ def _log_day(conn, key, status, loaded, started, error=None):
                         started_at=started, finished_at=_now(), error=error)
 
 
+def previous_weekday(today=None):
+    """The last Monday to Friday before today."""
+    day = (today or date.today()) - timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
+
+
 def catchup_start(conn, today=None):
     """The first day catchup considers.
 
