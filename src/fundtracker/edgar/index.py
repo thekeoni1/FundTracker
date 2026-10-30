@@ -82,7 +82,11 @@ def formd_rows(rows):
     return result
 
 
+def filing_folder_url(cik, accession):
+    """The filing's folder on EDGAR, built from the issuer CIK, not the accession prefix."""
+    return f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession.replace('-', '')}/"
+
+
 def primary_doc_url(cik, accession):
-    """The filing's primary_doc.xml, built from the issuer CIK, not the accession prefix."""
-    return (f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/"
-            f"{accession.replace('-', '')}/primary_doc.xml")
+    """The filing's primary_doc.xml."""
+    return filing_folder_url(cik, accession) + "primary_doc.xml"

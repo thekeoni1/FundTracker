@@ -243,6 +243,26 @@ def launches_since(conn, since, min_score=0, fund_types=None):
     return [dict(r) for r in rows]
 
 
+def funds_for_launches(conn, launches):
+    """Every fund of the given launch rows as a dict of fund columns plus launch_id and
+    launch_score, in launch order and then the launch's own fund order."""
+    out = []
+    for launch in launches:
+        ciks = json.loads(launch["fund_ciks"])
+        rows = {r["cik"]: dict(r) for r in conn.execute(
+            f"SELECT * FROM fund WHERE cik IN ({', '.join('?' * len(ciks))})", ciks)}
+        out.extend(dict(rows[c], launch_id=launch["launch_id"], launch_score=launch["newness_score"])
+                   for c in ciks if c in rows)
+    return out
+
+
+def last_ingest_key(conn, source, statuses=("ok", "no_index")):
+    """The latest ingest_log key for source with one of statuses, or None."""
+    marks = ", ".join("?" * len(statuses))
+    return conn.execute(f"SELECT max(key) FROM ingest_log WHERE source = ? AND status IN ({marks})",
+                        (source, *statuses)).fetchone()[0]
+
+
 def get_fund(conn, cik):
     """The fund row for cik as a dict, with manager_id, or None. Accepts an unpadded CIK."""
     row = conn.execute(

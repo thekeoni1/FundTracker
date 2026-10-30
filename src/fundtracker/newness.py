@@ -21,6 +21,20 @@ WEIGHTS = {
     "pe_vc_re_name": -20,       # a fund name looks like private equity, venture or real estate
     "platform": 0,              # label naming the over-cap entities (large manager or SPV platform)
 }
+# How each reason reads in the terminal and the workbook.
+REASON_LABELS = {
+    "new_manager": "new manager: no key seen before",
+    "single_filing": "first notice: every fund has one filing",
+    "sale_yet_to_occur": "pre-launch: first sale not yet made",
+    "nothing_raised": "nothing raised: no sales and no investors",
+    "newly_formed": "newly formed vehicle",
+    "exemption_06c": "Rule 506(c): may market publicly",
+    "min_investment_band": "minimum ticket 100k to 1m",
+    "established_manager": "established manager or large organisation",
+    "cco_signer": "signed by the compliance officer of a firm with earlier funds",
+    "pe_vc_re_name": "name reads as private equity, venture or real estate",
+    "platform": "organisation on many funds",
+}
 MIN_INVESTMENT_BAND = (100_000, 1_000_000)  # inclusive
 ESTABLISHED_FUNDS = 5
 CCO_TITLE = "CHIEF COMPLIANCE OFFICER"
@@ -89,3 +103,9 @@ def score_launch(facts):
 
     score = max(0, min(100, sum(r["points"] for r in reasons)))
     return score, reasons
+
+
+def reason_phrase(reason):
+    """A reason dict as its label and signed points: "new manager: no key seen before (+40)"."""
+    label = REASON_LABELS.get(reason["code"], reason["code"].replace("_", " "))
+    return f"{label} ({reason['points']:+d})" if reason["points"] else label

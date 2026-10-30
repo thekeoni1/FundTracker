@@ -25,6 +25,7 @@ from pathlib import Path
 from fundtracker import config, derive, ingest
 from fundtracker.db import repo
 from fundtracker.edgar.datasets import Quarter
+from fundtracker.edgar.index import filing_folder_url as edgar_folder
 
 
 def main(argv=None):
@@ -231,13 +232,6 @@ def parse_since(text, today=None):
         return date.fromisoformat(text).isoformat()
     except ValueError:
         raise argparse.ArgumentTypeError(f"expected 7d, 30d or YYYY-MM-DD, not {text!r}")
-
-
-EDGAR_FOLDER = "https://www.sec.gov/Archives/edgar/data/{cik}/{folder}/"
-
-
-def edgar_folder(cik, accession):
-    return EDGAR_FOLDER.format(cik=int(cik), folder=accession.replace("-", ""))
 
 
 def _launch_name(row):
