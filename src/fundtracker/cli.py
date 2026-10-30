@@ -7,6 +7,8 @@
     derive                                   rebuild funds, managers and launches
     new [--since 7d] [--min-score N] [--type hedge|all] [--xlsx [PATH]] [--csv PATH]
                                              launches since a date, best score first
+    emerging [--min-age 6m] [--max-age 18m] [--type hedge|all] [--min-score N]
+             [--xlsx [PATH]] [--csv PATH]    managers 6 to 18 months old, by traction
     fund <cik>                               a fund's filings, people and EDGAR links
     manager <id>                             a manager's funds over time
     search "<text>"                          local search over funds, managers, people
@@ -24,7 +26,7 @@ import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from fundtracker import classify, config, derive, ingest, newness, normalize
+from fundtracker import classify, config, derive, ingest, newness, normalize, traction
 from fundtracker.db import repo
 from fundtracker.edgar.datasets import Quarter
 from fundtracker.edgar.index import filing_folder_url as edgar_folder
@@ -72,6 +74,20 @@ def main(argv=None):
     p.add_argument("--csv", metavar="PATH",
                    help="also write the rows with every launch and fund column")
     p.set_defaults(func=cmd_new)
+
+    p = sub.add_parser("emerging", help="managers whose first filing is 6 to 18 months old, by traction")
+    p.add_argument("--min-age", default=EMERGING_MIN_AGE, type=_age_arg, metavar="6m|180d",
+                   help=f"youngest first filing, in months or days (default {EMERGING_MIN_AGE})")
+    p.add_argument("--max-age", default=EMERGING_MAX_AGE, type=_age_arg, metavar="18m|540d",
+                   help=f"oldest first filing (default {EMERGING_MAX_AGE})")
+    p.add_argument("--type", choices=("hedge", "all"), default="hedge",
+                   help="hedge: managers with a hedge fund candidate; all: any pooled fund (default hedge)")
+    p.add_argument("--min-score", type=int, default=0, metavar="N")
+    p.add_argument("--xlsx", nargs="?", const="", metavar="PATH",
+                   help="also write an Excel workbook (default path "
+                        "data/exports/emerging-{type}-{min}-{max}-{YYYYMMDD}.xlsx)")
+    p.add_argument("--csv", metavar="PATH", help="also write the rows with every manager column")
+    p.set_defaults(func=cmd_emerging)
 
     p = sub.add_parser("fund", help="one fund's filings, related persons, signers and EDGAR links")
     p.add_argument("cik")
@@ -273,31 +289,29 @@ def _rule_506(row):
 
 
 # The columns new prints, as (header, width, value of a launches_since row).
-# Width None shares the space the others leave; every cell wraps to its width
-# rather than being cut. Fund columns come from the launch's anchor fund.
+# An int width is fixed; a float is that share of the space the fixed columns
+# leave. Every cell wraps to its width rather than being cut. Fund columns
+# come from the launch's anchor fund.
 NEW_COLUMNS = (
     ("Date", 10, lambda r: r["window_start"]),
     ("Score", 5, lambda r: "" if r["newness_score"] is None else str(r["newness_score"])),
-    ("Launch", None, _launch_name),
-    ("Manager", None, lambda r: r["manager_name"] or ""),
+    ("Launch", 0.55, _launch_name),
+    ("Manager", 0.45, lambda r: r["manager_name"] or ""),
     ("Type", 9, lambda r: _short_type(r["fund_type"])),
     ("506", 6, _rule_506),
     ("Min", 9, lambda r: _amount(r["fund_min_investment_num"])),
     ("State", 5, lambda r: r["fund_state"] or ""),
 )
-# The launch name's share of the flexible width; the manager gets the rest.
-LAUNCH_SHARE = 0.55
 MIN_FLEX_WIDTH = 16
-REASON_INDENT = " " * 6
+NOTE_INDENT = " " * 6
 GAP = "  "
 
 
-def _widths(total):
-    fixed = sum(w for _h, w, _v in NEW_COLUMNS if w)
-    flex = max(2 * MIN_FLEX_WIDTH, total - fixed - len(GAP) * (len(NEW_COLUMNS) - 1))
-    launch = max(MIN_FLEX_WIDTH, int(flex * LAUNCH_SHARE))
-    shares = iter((launch, max(MIN_FLEX_WIDTH, flex - launch)))
-    return [w or next(shares) for _h, w, _v in NEW_COLUMNS]
+def _widths(columns, total):
+    fixed = sum(w for _h, w, _v in columns if isinstance(w, int))
+    n_flex = sum(1 for _h, w, _v in columns if not isinstance(w, int))
+    flex = max(n_flex * MIN_FLEX_WIDTH, total - fixed - len(GAP) * (len(columns) - 1))
+    return [w if isinstance(w, int) else max(MIN_FLEX_WIDTH, int(flex * w)) for _h, w, _v in columns]
 
 
 def _table_lines(cells, widths):
@@ -308,18 +322,24 @@ def _table_lines(cells, widths):
             for i in range(max(len(w) for w in wrapped))]
 
 
-def launch_table(rows, total_width):
-    """The new table as lines: a header, then per launch its wrapped columns and an
-    indented line of reason phrases."""
-    widths = _widths(total_width)
-    lines = _table_lines([h for h, _w, _v in NEW_COLUMNS], widths)
+def table(columns, rows, total_width, notes):
+    """A table as lines: a header, then per row its wrapped columns and, under it, each
+    non-empty text notes(row) returns, indented and wrapped to the full width."""
+    widths = _widths(columns, total_width)
+    lines = _table_lines([h for h, _w, _v in columns], widths)
     for r in rows:
-        lines.extend(_table_lines([value(r) for _h, _w, value in NEW_COLUMNS], widths))
-        reasons = "; ".join(newness.reason_phrase(x) for x in _reasons(r))
-        if reasons:
-            lines.extend(textwrap.wrap(reasons, max(40, total_width), initial_indent=REASON_INDENT,
-                                       subsequent_indent=REASON_INDENT, break_on_hyphens=False))
+        lines.extend(_table_lines([value(r) for _h, _w, value in columns], widths))
+        for note in notes(r):
+            if note:
+                lines.extend(textwrap.wrap(note, max(40, total_width), initial_indent=NOTE_INDENT,
+                                           subsequent_indent=NOTE_INDENT, break_on_hyphens=False))
     return lines
+
+
+def launch_table(rows, total_width):
+    """The new table: per launch its columns and a line of reason phrases."""
+    return table(NEW_COLUMNS, rows, total_width,
+                 lambda r: ["; ".join(newness.reason_phrase(x) for x in _reasons(r))])
 
 
 def default_xlsx_path(fund_type, since_text, today=None):
@@ -380,6 +400,127 @@ def _write_new_csv(path, rows):
         out.writerow([h for h, _v in CSV_COLUMNS] + raw)
         for r in rows:
             out.writerow([value(r) for _h, value in CSV_COLUMNS] + [r[c] for c in raw])
+
+
+# emerging: managers first seen 6 to 18 months ago, ranked by traction (PLAN.md 7.6).
+
+EMERGING_MIN_AGE = "6m"
+EMERGING_MAX_AGE = "18m"
+# Managers with this many funds or more are not emerging.
+EMERGING_MAX_FUNDS = 20
+
+
+def parse_age(text):
+    """6m is six months, 180d is 180 days (a timedelta)."""
+    m = re.fullmatch(r"(\d+)([md])", text.strip().lower())
+    if not m:
+        raise argparse.ArgumentTypeError(f"expected an age such as 6m or 180d, not {text!r}")
+    n = int(m.group(1))
+    return n if m.group(2) == "m" else timedelta(days=n)
+
+
+def _age_arg(text):
+    """--min-age and --max-age as typed, after checking parse_age accepts them."""
+    parse_age(text)
+    return text.strip().lower()
+
+
+def _people_text(row):
+    people = json.loads(row["people"] or "[]")
+    return "; ".join(f"{p['name']} ({', '.join(p['roles'])})" if p["roles"] else p["name"] for p in people)
+
+
+def _place_text(row):
+    return ", ".join(p for p in (row["city"], row["state"] or row["country"]) if p)
+
+
+EMERGING_COLUMNS = (
+    ("Score", 5, lambda r: str(r["score"])),
+    ("Manager", 1.0, lambda r: r["display_name"] or ""),
+    ("First seen", 10, lambda r: r["first_seen_date"] or ""),
+    ("Age", 3, lambda r: str(r["age_months"])),
+    ("Funds", 5, lambda r: str(r["n_funds"])),
+    ("Raised", 13, lambda r: _amount(r["total_sold"])),
+    ("Investors", 9, lambda r: _amount(r["total_investors"])),
+    ("Latest", 10, lambda r: r["latest_filing_date"] or ""),
+    ("City and state", 18, _place_text),
+)
+
+
+def emerging_rows(conn, args, today):
+    """The managers emerging lists, scored, filtered by --min-score and sorted by score,
+    then total sold, then first seen."""
+    managers = repo.emerging_managers(
+        conn, today, parse_age(args.min_age), parse_age(args.max_age),
+        ["Hedge Fund"] if args.type == "hedge" else None, max_funds=EMERGING_MAX_FUNDS)
+    rows = []
+    for m in managers:
+        m["score"], reasons = traction.score_manager(dict(m, today=today, type=args.type))
+        m["reasons"] = json.dumps(reasons)
+        m["age_months"] = traction.age_months(m["first_seen_date"], today)
+        if m["score"] >= args.min_score:
+            rows.append(m)
+    rows.sort(key=lambda m: (-m["score"], -(m["total_sold"] or 0), m["first_seen_date"], m["manager_id"]))
+    return rows
+
+
+def emerging_table(rows, total_width):
+    """The emerging table: per manager its columns, a line of people and a line of reasons."""
+    return table(EMERGING_COLUMNS, rows, total_width, lambda r: [
+        _people_text(r),
+        "; ".join(traction.reason_phrase(x) for x in json.loads(r["reasons"]))])
+
+
+def default_emerging_path(fund_type, min_age, max_age, today=None):
+    stamp = (today or date.today()).strftime("%Y%m%d")
+    return Path(config.DATA_DIR) / "exports" / f"emerging-{fund_type}-{min_age}-{max_age}-{stamp}.xlsx"
+
+
+def cmd_emerging(conn, args):
+    today = date.today()
+    if not conn.execute("SELECT 1 FROM manager WHERE n_filings IS NOT NULL LIMIT 1").fetchone():
+        print("no manager traction yet: run fundtracker derive first")
+        return 1
+    rows = emerging_rows(conn, args, today)
+    for line in emerging_table(rows, shutil.get_terminal_size((120, 24)).columns):
+        print(line)
+    oldest = repo.age_cutoff(today, parse_age(args.max_age))
+    newest = repo.age_cutoff(today, parse_age(args.min_age))
+    print(f"{len(rows)} managers first seen {oldest} to {newest}"
+          + (f" with score >= {args.min_score}" if args.min_score else "")
+          + (", hedge fund candidates" if args.type == "hedge" else ", every pooled fund type")
+          + f", fewer than {EMERGING_MAX_FUNDS} funds, no over-cap organisations")
+    if args.xlsx is not None:
+        from fundtracker import export
+
+        path = Path(args.xlsx) if args.xlsx else default_emerging_path(args.type, args.min_age, args.max_age)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        meta = {"generated_at": datetime.now(), "today": today, "oldest": oldest, "newest": newest,
+                "min_age": args.min_age, "max_age": args.max_age, "type": args.type,
+                "min_score": args.min_score, "max_funds": EMERGING_MAX_FUNDS,
+                "last_daily": repo.last_ingest_key(conn, ingest.DAILY_SOURCE)}
+        funds = [dict(f, manager_score=m["score"]) for m in rows for f in m["funds"]]
+        export.write_emerging_workbook(path, rows, funds, meta)
+        print(f"wrote {path}")
+    if args.csv:
+        _write_emerging_csv(args.csv, rows)
+        print(f"wrote {args.csv}")
+    return 0
+
+
+def _write_emerging_csv(path, rows):
+    """The printed columns, then people, reasons and every manager column."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    raw = [c for c in (rows[0] if rows else ()) if c not in ("funds", "reasons", "score", "age_months")]
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        out = csv.writer(fh)
+        out.writerow([h.lower().replace(" ", "_") for h, _w, _v in EMERGING_COLUMNS]
+                     + ["people_text", "reason_text"] + raw)
+        for r in rows:
+            out.writerow([value(r) for _h, _w, value in EMERGING_COLUMNS]
+                         + [_people_text(r), "; ".join(traction.reason_phrase(x)
+                                                       for x in json.loads(r["reasons"]))]
+                         + [r[c] for c in raw])
 
 
 def cmd_fund(conn, args):

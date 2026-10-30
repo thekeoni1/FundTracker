@@ -425,7 +425,10 @@ def build_manager_stats(conn):
 
 
 def _place(city, code, desc):
-    """(city, state, country): state is the code for US issuers, country a readable name."""
+    """(city, state, country): state is the code for US issuers, country a readable name.
+    A city filed all in capitals is title-cased; any other is kept as filed."""
+    if city and city.isupper():
+        city = city.title()
     if code in US_STATE_CODES:
         return city, code, "United States"
     country = desc or code

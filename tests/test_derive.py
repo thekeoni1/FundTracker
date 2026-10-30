@@ -528,7 +528,7 @@ def test_manager_stats_sum_the_latest_filings_and_list_people(empty):
     assert m["has_amendment"] == 1 and m["is_over_cap"] == 0
     assert json.loads(m["fund_types"]) == ["Hedge Fund", "Other Investment Fund"]
     assert (m["state"], m["country"], m["edgar_cik"]) == ("TX", "United States", "7000000001")
-    assert m["city"] == base.issuers[0].city
+    assert m["city"] == "Houston"  # filed as HOUSTON
     people = json.loads(m["people"])
     assert [(p["name"], p["roles"]) for p in people] == [
         ("Jane Q. Doe", ["Executive Officer", "Director"]), ("Bob Roe", ["Promoter"])]
@@ -557,6 +557,7 @@ def test_manager_on_an_over_cap_entity_is_flagged(empty, small_entity_cap):
 
 
 def test_foreign_issuer_gets_a_country_and_no_state():
-    assert derive._place("GEORGE TOWN", "E9", "CAYMAN ISLANDS") == ("GEORGE TOWN", None, "Cayman Islands")
+    assert derive._place("GEORGE TOWN", "E9", "CAYMAN ISLANDS") == ("George Town", None, "Cayman Islands")
+    assert derive._place("McLean", "VA", "VIRGINIA") == ("McLean", "VA", "United States")
     assert derive._place("Austin", "TX", "TEXAS") == ("Austin", "TX", "United States")
     assert derive._place(None, None, None) == (None, None, None)

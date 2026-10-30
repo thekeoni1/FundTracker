@@ -10,7 +10,7 @@ import json
 import sqlite3
 import types
 import typing
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fundtracker.model import (
@@ -275,6 +275,58 @@ def last_ingest_key(conn, source, statuses=("ok", "no_index")):
     marks = ", ".join("?" * len(statuses))
     return conn.execute(f"SELECT max(key) FROM ingest_log WHERE source = ? AND status IN ({marks})",
                         (source, *statuses)).fetchone()[0]
+
+
+def age_cutoff(today, age):
+    """The date age before today: age is a number of months, or a timedelta."""
+    from fundtracker.traction import months_before
+
+    return today - age if isinstance(age, timedelta) else months_before(today, age)
+
+
+def emerging_managers(conn, today, min_age_months, max_age_months, fund_types=None,
+                      exclude_over_cap=True, max_funds=20):
+    """Managers first seen between max_age and min_age before today, oldest bound included.
+
+    Ages are months, or a timedelta for a span in days. Only managers with a
+    Pooled Investment Fund are listed; fund_types (for example ["Hedge Fund"])
+    keeps those with a pooled fund of one of those types or a hedge fund
+    candidate (classify.is_hedge_candidate, which includes the 3C rule for
+    Other Investment Funds). Over-cap organisations and managers with
+    max_funds or more funds are left out when asked. Each row is a dict of
+    manager columns with "funds": its fund rows, oldest first, each with
+    latest_total_amount_sold and latest_n_investors from its latest filing.
+    """
+    where = ["m.first_seen_date >= ?", "m.first_seen_date <= ?"]
+    params = [age_cutoff(today, max_age_months).isoformat(), age_cutoff(today, min_age_months).isoformat()]
+    if exclude_over_cap:
+        where.append("coalesce(m.is_over_cap, 0) = 0")
+    if max_funds is not None:
+        where.append("m.n_funds < ?")
+        params.append(max_funds)
+    pooled = "f.industry_group = 'Pooled Investment Fund'"
+    if fund_types:
+        pooled += f" AND (f.fund_type IN ({', '.join('?' * len(fund_types))}) OR f.is_hedge_candidate = 1)"
+        params.extend(fund_types)
+    where.append(f"EXISTS (SELECT 1 FROM fund_manager fm JOIN fund f USING (cik) "
+                 f"WHERE fm.manager_id = m.manager_id AND {pooled})")
+    managers = [dict(r, funds=[]) for r in conn.execute(
+        f"SELECT m.* FROM manager m WHERE {' AND '.join(where)} ORDER BY m.manager_id", params)]
+    by_id = {m["manager_id"]: m for m in managers}
+    ids = list(by_id)
+    for start in range(0, len(ids), 500):
+        chunk = ids[start:start + 500]
+        for r in conn.execute(
+                f"""
+                SELECT f.*, fm.manager_id, lo.total_amount_sold_num AS latest_total_amount_sold,
+                       lo.n_investors AS latest_n_investors
+                FROM fund_manager fm JOIN fund f USING (cik)
+                LEFT JOIN offering lo ON lo.accession = f.latest_accession
+                WHERE fm.manager_id IN ({', '.join('?' * len(chunk))})
+                ORDER BY f.first_filing_date, f.cik
+                """, chunk):
+            by_id[r["manager_id"]]["funds"].append(dict(r))
+    return managers
 
 
 def get_fund(conn, cik):
