@@ -7,7 +7,8 @@
   <thead><tr>
     <th>Score</th><th>Manager</th><th>First seen</th><th class="num">Age</th><th class="num">Funds</th>
     <th class="num">Raised</th><th class="num">Investors</th><th>Latest filing</th><th>City and state</th>
-    <th>People</th><th>Prior firm</th><th>EDGAR</th>
+    <th>People</th><th>Prior firm</th><th>Website</th><th>Adviser</th><th class="num">Employees</th>
+    <th class="num">RAUM</th><th class="num">SEC hedge funds</th><th>EDGAR</th>
   </tr></thead>
   <tbody>
   {% for m in rows %}
@@ -23,10 +24,15 @@
       <td>{{ m | place }}</td>
       <td class="small">{{ m | people_short }}</td>
       <td class="small">{{ m | prior_firms }}</td>
+      <td class="small">{% if m.website %}<a href="{{ links.website(m.website) }}" target="_blank" rel="noopener">{{ m.website | lower | replace("https://", "") | replace("http://", "") }}</a>{% endif %}</td>
+      <td class="nowrap">{% if m.adviser_crd %}<a href="{{ links.iapd_firm(m.adviser_crd) }}" target="_blank" rel="noopener">{{ m | adviser_label }}</a>{% endif %}</td>
+      <td class="num">{{ m.employees | amount }}</td>
+      <td class="num">{{ m.raum | amount }}</td>
+      <td class="num">{{ m.adv_hedge_funds | amount }}</td>
       <td>{% if m.edgar_cik %}<a href="{{ links.edgar_company(m.edgar_cik) }}" target="_blank" rel="noopener">filings</a>{% endif %}</td>
     </tr>
   {% else %}
-    <tr><td colspan="12" class="empty">No managers match these filters.</td></tr>
+    <tr><td colspan="17" class="empty">No managers match these filters.</td></tr>
   {% endfor %}
   </tbody>
 </table>

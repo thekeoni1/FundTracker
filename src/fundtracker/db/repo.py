@@ -66,6 +66,15 @@ ADDED_COLUMNS = (
     ("manager", "people", "TEXT"),
     ("manager", "edgar_cik", "TEXT"),
     ("manager", "prior_firms", "TEXT"),
+    ("manager", "adviser_crd", "TEXT"),
+    ("manager", "adviser_confidence", "TEXT"),
+    ("manager", "adviser_kind", "TEXT"),
+    ("manager", "website", "TEXT"),
+    ("manager", "employees", "INTEGER"),
+    ("manager", "raum", "INTEGER"),
+    ("manager", "adv_hedge_funds", "INTEGER"),
+    ("manager", "adv_private_assets", "INTEGER"),
+    ("manager", "adv_filing_date", "TEXT"),
 )
 
 
@@ -277,6 +286,11 @@ MIN_INVESTMENT_BANDS = {"<100k": (None, 100_000), "100k-1m": (100_000, 1_000_000
                         ">1m": (1_000_000, None)}
 RAISED_BANDS = {"0": (None, 1), ">0": (1, None), ">1m": (1_000_000, None),
                 ">10m": (10_000_000, None)}
+# Form ADV item 5A total employees; only registered advisers report it.
+EMPLOYEE_BANDS = {"1-5": (1, 6), "6-20": (6, 21), "21+": (21, None)}
+# The adviser filter: a high or medium link (manager.adviser_crd is set only for those).
+ADVISER_FILTERS = {"linked": "m.adviser_crd IS NOT NULL", "ria": "m.adviser_kind = 'ria'",
+                   "era": "m.adviser_kind = 'era'", "none": "m.adviser_crd IS NULL"}
 LAUNCH_SORTS = {
     "score": "l.newness_score DESC, l.window_start DESC, l.launch_id",
     "date": "l.window_start DESC, l.newness_score DESC, l.launch_id",
@@ -392,7 +406,7 @@ def emerging_managers(conn, today, min_age_months, max_age_months, fund_types=No
 
 
 def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=True, max_funds=20,
-                        raised=None, states=(), prior_firm="any"):
+                        raised=None, states=(), prior_firm="any", adviser="any", employees=None):
     """Managers first seen from oldest to newest (dates, both included).
 
     Only managers with a Pooled Investment Fund are listed; fund_types (for
@@ -402,7 +416,8 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     organisations and managers with max_funds or more funds are left out when
     asked. raised is a key of RAISED_BANDS on the manager's total sold;
     states are the state codes of its earliest fund (edgar_cik); prior_firm
-    is "with", "without" or "any". Each row is a dict of manager columns with
+    is "with", "without" or "any"; adviser is a key of ADVISER_FILTERS or "any";
+    employees a key of EMPLOYEE_BANDS. Each row is a dict of manager columns with
     "funds": its fund rows, oldest first, each with latest_total_amount_sold
     and latest_n_investors from its latest filing.
     """
@@ -419,6 +434,11 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
         params.extend(states)
     if prior_firm in ("with", "without"):
         where.append(f"coalesce(m.prior_firms, '[]') {'<>' if prior_firm == 'with' else '='} '[]'")
+    if adviser in ADVISER_FILTERS:
+        where.append(ADVISER_FILTERS[adviser])
+    if employees in EMPLOYEE_BANDS:
+        where.append("m.employees IS NOT NULL")
+        _band("m.employees", employees, EMPLOYEE_BANDS, where, params)
     pooled = "f.industry_group = 'Pooled Investment Fund'"
     if fund_types:
         pooled += f" AND f.fund_type IN ({', '.join('?' * len(fund_types))})"
@@ -467,7 +487,33 @@ def get_manager(conn, manager_id):
         SELECT f.*, fm.evidence FROM fund_manager fm JOIN fund f USING (cik)
         WHERE fm.manager_id = ? ORDER BY f.first_filing_date, f.cik
         """, (manager_id,))]
+    manager["adviser"], manager["possible_advisers"] = manager_adviser(conn, manager_id)
     return manager
+
+
+def manager_adviser(conn, manager_id):
+    """(adviser, possible advisers) for a manager. adviser is the linked adviser row as a dict
+    with confidence and match_kinds, or None; possible advisers are the candidate adviser
+    rows when there is no high or medium link, by CRD."""
+    if not _has_table(conn, "manager_adviser"):
+        return None, []
+    link = conn.execute("SELECT * FROM manager_adviser WHERE manager_id = ?", (manager_id,)).fetchone()
+    if link is None:
+        return None, []
+    if link["crd"] is not None:
+        row = conn.execute("SELECT * FROM adviser WHERE crd = ?", (link["crd"],)).fetchone()
+        if row is not None:
+            return dict(row, confidence=link["confidence"],
+                        match_kinds=json.loads(link["match_kinds"])), []
+    crds = json.loads(link["evidence"]).get("candidates", [])
+    rows = {r["crd"]: dict(r) for r in conn.execute(
+        f"SELECT * FROM adviser WHERE crd IN ({', '.join('?' * len(crds))})", crds)} if crds else {}
+    return None, [rows[c] for c in crds if c in rows]
+
+
+def _has_table(conn, name):
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                        (name,)).fetchone() is not None
 
 
 def get_launch(conn, launch_id):

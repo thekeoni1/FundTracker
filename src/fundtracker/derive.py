@@ -675,6 +675,17 @@ def build_manager_advisers(conn):
             yield row
 
     conn.executemany("INSERT INTO manager_adviser VALUES (?, ?, ?, ?, ?)", rows())
+    conn.execute(
+        f"""
+        UPDATE manager SET (adviser_crd, adviser_confidence, adviser_kind, website, employees, raum,
+                            adv_hedge_funds, adv_private_assets, adv_filing_date) = (
+            SELECT a.crd, ma.confidence, a.kind, a.website, a.employees, a.raum, a.n_hedge_funds,
+                   a.private_fund_assets, a.latest_filing_date
+            FROM manager_adviser ma JOIN adviser a USING (crd)
+            WHERE ma.manager_id = manager.manager_id)
+        WHERE manager_id IN (SELECT manager_id FROM manager_adviser
+                             WHERE confidence IN ({', '.join(f"'{t}'" for t in LINKED)}))
+        """)
     for table in ("adv_key", "manager_key"):
         conn.execute(f"DROP TABLE temp.{table}")
     log.info("manager advisers: %(high)d high, %(medium)d medium, %(none)d candidates only", tiers)

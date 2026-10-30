@@ -19,6 +19,11 @@ RAISED = {"any": "any amount raised", "0": "nothing raised", ">0": "something ra
 PLATFORMS = {"hide": "organisations on many funds hidden", "show": "organisations on many funds shown"}
 PRIOR_FIRMS = {"any": "with or without a prior firm", "with": "with a prior firm",
                "without": "without a prior firm"}
+ADVISERS = {"any": "with or without a Form ADV adviser", "linked": "with a Form ADV adviser",
+            "ria": "registered adviser (RIA)", "era": "exempt reporting adviser (ERA)",
+            "none": "no Form ADV adviser"}
+EMPLOYEES = {"any": "any headcount", "1-5": "1 to 5 employees", "6-20": "6 to 20 employees",
+             "21+": "21 or more employees"}
 LAUNCH_SORTS = {"score": "best score first", "date": "newest first", "raised": "most raised first"}
 EMERGING_SORTS = {"score": "best score first", "raised": "most raised first",
                   "first_seen": "newest first"}
@@ -56,6 +61,8 @@ def emerging_filters(args, today):
         "state": _states(args.getlist("state")),
         "platforms": _choice(args.get("platforms"), PLATFORMS),
         "prior_firm": _choice(args.get("prior_firm"), PRIOR_FIRMS),
+        "adviser": _choice(args.get("adviser"), ADVISERS),
+        "employees": _choice(args.get("employees"), EMPLOYEES),
         "sort": _choice(args.get("sort"), EMERGING_SORTS),
     }
 
@@ -69,7 +76,8 @@ def describe_launches(f):
 
 def describe_emerging(f):
     return _describe(f, [f"first seen {f['first_seen_from']} to {f['first_seen_to']}"], EMERGING_SORTS, (
-        ("type", TYPES), ("raised", RAISED), ("platforms", PLATFORMS), ("prior_firm", PRIOR_FIRMS)))
+        ("type", TYPES), ("raised", RAISED), ("platforms", PLATFORMS), ("prior_firm", PRIOR_FIRMS),
+        ("adviser", ADVISERS), ("employees", EMPLOYEES)))
 
 
 def _describe(f, phrases, sorts, choices):

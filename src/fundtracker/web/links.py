@@ -7,6 +7,7 @@ page calls returns the matching firms
 (https://adviserinfo.sec.gov/search/genericsearch/firmgrid?query=bridgewater).
 """
 
+import re
 from urllib.parse import quote_plus
 
 from fundtracker.edgar.index import company_filings_url, filing_folder_url
@@ -36,6 +37,19 @@ def linkedin_people(name, firm=None):
 def iapd_search(firm):
     """An SEC IAPD firm search on the firm name."""
     return f"https://adviserinfo.sec.gov/search/genericsearch/firmgrid?query={quote_plus(firm or '')}"
+
+
+def iapd_firm(crd):
+    """The firm's page on IAPD, by CRD: the human page, which links its Form ADV."""
+    return f"https://adviserinfo.sec.gov/firm/summary/{crd}"
+
+
+def website(url):
+    """A website from Form ADV as a link: the files often leave out the scheme."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    return url if re.match(r"(?i)https?://", url) else f"https://{url}"
 
 
 def _phrase(text):

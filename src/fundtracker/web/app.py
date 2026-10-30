@@ -167,7 +167,7 @@ def emerging_rows(conn, f, today):
         conn, f["first_seen_from"], f["first_seen_to"],
         ["Hedge Fund"] if f["type"] == "hedge" else None, exclude_over_cap=f["platforms"] == "hide",
         max_funds=traction.EMERGING_MAX_FUNDS, raised=f["raised"], states=f["state"],
-        prior_firm=f["prior_firm"])
+        prior_firm=f["prior_firm"], adviser=f["adviser"], employees=f["employees"])
     rows = traction.score_managers(managers, today, f["type"], f["min_score"])
     # Python's sort is stable, so each other order keeps the score order within a tie.
     if f["sort"] == "raised":
@@ -243,8 +243,15 @@ def _register_filters(app):
         place=lambda m: ", ".join(p for p in (m["city"], m["state"] or m["country"]) if p),
         exemptions=lambda text: ", ".join(classify.sort_exemptions(json.loads(text or "[]"))),
         address=_address,
+        adviser_label=_adviser_label,
     )
     app.jinja_env.globals.update(links=links, reason_labels=newness.REASON_LABELS)
+
+
+def _adviser_label(m):
+    """RIA or ERA with the link's confidence: "RIA, high". Empty when unlinked."""
+    kind = m.get("adviser_kind")
+    return f"{kind.upper()}, {m['adviser_confidence']}" if kind else ""
 
 
 def _address(f):

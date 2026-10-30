@@ -20,6 +20,7 @@ TRACTION_WEIGHTS = {
     "recent_activity": 10,    # a filing within RECENT_MONTHS
     "hedge": 0,               # label: a Hedge Fund among the latest fund types (type all only)
     "prior_firm": 0,          # label: a signer or named person filed earlier for a large manager
+    "adviser": 0,             # label: a high or medium Form ADV adviser link, with its kind
     "large": -20,             # LARGE_FUNDS or more funds
     "nothing_raised": -20,    # every fund still reports nothing sold and no investors
 }
@@ -33,6 +34,7 @@ TRACTION_LABELS = {
     "recent_activity": "filed in the last 6 months",
     "hedge": "runs a hedge fund",
     "prior_firm": "people filed earlier for a large firm",
+    "adviser": "files Form ADV",
     "large": "many funds already",
     "nothing_raised": "nothing raised yet",
 }
@@ -116,6 +118,12 @@ def score_manager(facts):
         prior = json.loads(prior)
     if prior:
         add("prior_firm", ", ".join(prior))
+    kind = facts.get("adviser_kind")
+    if kind:
+        detail = f"{kind.upper()}, {facts.get('adviser_confidence')} confidence"
+        if facts.get("employees") is not None:
+            detail += f", {facts['employees']} employees"
+        add("adviser", detail)
     if n_funds >= LARGE_FUNDS:
         add("large", f"{n_funds} funds")
     if sold == 0 and investors == 0:

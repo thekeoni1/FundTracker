@@ -251,7 +251,17 @@ CREATE TABLE IF NOT EXISTS manager (
     country             TEXT,
     people              TEXT,            -- JSON list of individual related persons, see derive
     edgar_cik           TEXT,            -- the earliest fund's CIK
-    prior_firms         TEXT             -- JSON list of large managers its people filed for earlier
+    prior_firms         TEXT,            -- JSON list of large managers its people filed for earlier
+    -- Form ADV, from a high or medium manager_adviser link (derive.build_manager_advisers)
+    adviser_crd         TEXT,
+    adviser_confidence  TEXT,            -- high or medium
+    adviser_kind        TEXT,            -- ria or era
+    website             TEXT,
+    employees           INTEGER,         -- 5A, ria only
+    raum                INTEGER,         -- 5F(2)(c), ria only
+    adv_hedge_funds     INTEGER,         -- the SEC's count of the adviser's hedge funds
+    adv_private_assets  INTEGER,         -- gross assets of its private funds
+    adv_filing_date     TEXT             -- its latest Form ADV filing
 );
 
 CREATE TABLE IF NOT EXISTS fund_manager (

@@ -114,6 +114,8 @@ def write_workbook(path, launches, funds, meta):
         (None, None),
         ("Launch window, days", derive.LAUNCH_WINDOW_DAYS),
         ("Entity key cap, CIKs", derive.ENTITY_KEY_CAP),
+        ("Adviser columns", "Form ADV, shown for high and medium confidence links only"),
+        ("Adviser phone and address cap", derive.ADVISER_KEY_CAP),
         ("Phone and address key cap, CIKs", derive.SERVICE_PROVIDER_CAP),
         ("Funds that make a manager established", newness.ESTABLISHED_FUNDS),
         ("Minimum investment band", "{:,} to {:,}".format(*newness.MIN_INVESTMENT_BAND)),
@@ -150,6 +152,13 @@ MANAGER_COLUMNS = (
     ("Country", 16, None, lambda m: m["country"]),
     ("People", 60, None, lambda m: _people_text(json.loads(m["people"] or "[]"))),
     ("Prior firm", 40, None, lambda m: ", ".join(json.loads(m["prior_firms"] or "[]"))),
+    ("Website", 30, None, lambda m: m.get("website")),
+    ("Adviser", 12, None, lambda m: f"{m['adviser_kind'].upper()}, {m['adviser_confidence']}"
+     if m.get("adviser_kind") else None),
+    ("Adviser CRD", 11, None, lambda m: m.get("adviser_crd")),
+    ("Employees", 10, AMOUNT_FORMAT, lambda m: m.get("employees")),
+    ("RAUM", 15, AMOUNT_FORMAT, lambda m: m.get("raum")),
+    ("SEC hedge funds", 9, None, lambda m: m.get("adv_hedge_funds")),
     ("Reasons", 80, None, lambda m: "; ".join(traction.reason_phrase(x)
                                                for x in json.loads(m["reasons"]))),
     ("EDGAR", 9, None, lambda m: "filings"),

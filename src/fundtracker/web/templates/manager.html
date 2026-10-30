@@ -17,6 +17,29 @@
   <li><a href="{{ links.iapd_search(m.display_name) }}" target="_blank" rel="noopener">SEC adviser search (IAPD)</a></li>
 </ul>
 
+<h2>Form ADV adviser</h2>
+{% set a = m.adviser %}
+{% if a %}
+<dl class="facts">
+  <dt>Adviser</dt><dd>{{ a.name or a.legal_name }} ({{ "registered, RIA" if a.kind == "ria" else "exempt reporting, ERA" }})</dd>
+  <dt>Link</dt><dd>{{ a.confidence }} confidence, by {{ a.match_kinds | join(", ") | replace("hedge_tiebreak", "the only one with hedge funds") }}</dd>
+  <dt>CRD</dt><dd><a href="{{ links.iapd_firm(a.crd) }}" target="_blank" rel="noopener">{{ a.crd }} on IAPD</a></dd>
+  <dt>Website</dt><dd>{% if a.website %}<a href="{{ links.website(a.website) }}" target="_blank" rel="noopener">{{ a.website }}</a>{% else %}none filed{% endif %}</dd>
+  <dt>Employees</dt><dd>{% if a.employees is not none %}{{ a.employees | amount }} ({{ a.advisory_employees | amount }} advisory){% else %}not reported (ERAs do not file Item 5){% endif %}</dd>
+  <dt>RAUM</dt><dd>{{ a.raum | amount if a.raum is not none else "not reported" }}</dd>
+  <dt>SEC hedge funds</dt><dd>{{ a.n_hedge_funds | amount }} of {{ a.n_private_funds | amount }} private funds, gross assets {{ a.private_fund_assets | amount }}</dd>
+  <dt>Office</dt><dd>{{ [a.street1, a.city, a.state, a.postal_code] | select | join(", ") }}{% if a.phone %}; {{ a.phone }}{% endif %}</dd>
+  <dt>Latest ADV</dt><dd>{{ a.latest_filing_date or "" }}; data as of {{ a.as_of }}</dd>
+</dl>
+{% elif m.possible_advisers %}
+<p>No adviser matches by name or a unique phone or address. Possible advisers, sharing a phone or address with this manager's funds:</p>
+<ul class="links">
+  {% for p in m.possible_advisers %}<li><a href="{{ links.iapd_firm(p.crd) }}" target="_blank" rel="noopener">{{ p.name or p.legal_name }}</a> ({{ p.kind | upper }}{% if p.any_hedge_funds %}, has hedge funds{% endif %}; as of {{ p.as_of }})</li>{% endfor %}
+</ul>
+{% else %}
+<p>No Form ADV adviser matches this manager.</p>
+{% endif %}
+
 <h2>Funds</h2>
 <div class="table-wrap">
 <table>
