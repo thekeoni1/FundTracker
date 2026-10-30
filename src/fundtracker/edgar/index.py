@@ -87,6 +87,12 @@ def filing_folder_url(cik, accession):
     return f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession.replace('-', '')}/"
 
 
+def company_filings_url(cik):
+    """The company's Form D filings on EDGAR."""
+    return ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+            f"&CIK={int(cik):010d}&type=D&dateb=&owner=include&count=40")
+
+
 def primary_doc_url(cik, accession):
     """The filing's primary_doc.xml."""
     return filing_folder_url(cik, accession) + "primary_doc.xml"

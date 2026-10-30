@@ -131,3 +131,53 @@ def test_emerging_before_derive_says_so(tmp_path, capsys):
     repo.connect(path).close()
     assert cli.main(["--db", str(path), "emerging"]) == 1
     assert "run fundtracker derive first" in capsys.readouterr().out
+
+
+def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
+    from openpyxl import load_workbook
+
+    monkeypatch.setattr(cli.config, "DATA_DIR", tmp_path / "data")
+    assert cli.main(["--db", world, "emerging", "--xlsx"]) == 0
+    path = cli.default_emerging_path("hedge", "6m", "18m")
+    assert capsys.readouterr().out.splitlines()[-1] == f"wrote {path}"
+    wb = load_workbook(path)
+    assert wb.sheetnames == ["Managers", "Funds", "People", "Reasons", "About"]
+
+    ws = wb["Managers"]
+    header = [c.value for c in ws[1]]
+    assert header == ["Score", "Manager", "First seen", "Age months", "Funds", "Raised", "Investors",
+                      "Amended", "Latest filing", "Types", "Exemptions", "City", "State", "Country",
+                      "People", "Reasons", "EDGAR", "Manager ID"]
+    heron = dict(zip(header, [c.value for c in ws[2]]))
+    assert (heron["Score"], heron["Manager"], heron["Funds"], heron["Raised"], heron["Investors"]) == (
+        65, "Heron Capital Management LLC", 2, 18_000_000, 12)
+    assert heron["First seen"].date().isoformat() == ago(12) and ws["C2"].number_format == "yyyy-mm-dd"
+    assert ws["F2"].number_format == "#,##0" and heron["Amended"] == "no"
+    assert (heron["City"], heron["State"], heron["Country"]) == ("Houston", "TX", "United States")
+    assert heron["Types"] == "Hedge Fund" and heron["Exemptions"] == "06c, 3C, 3C.1"
+    assert heron["People"] == "Jane Q. Doe (Executive Officer)"
+    assert heron["Reasons"].startswith("raised money (+25); raised 10m or more (+10)")
+    assert ws["Q2"].hyperlink.target == ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+                                         "&CIK=7000000001&type=D&dateb=&owner=include&count=40")
+    [scale] = list(ws.conditional_formatting)
+    assert str(scale.sqref) == "A2:A3" and scale.rules[0].type == "colorScale"  # Score is column A
+    assert ws.freeze_panes == "A2" and ws.auto_filter.ref == "A1:R3"
+
+    funds = wb["Funds"]
+    fheader = [c.value for c in funds[1]]
+    assert fheader[:3] == ["Manager ID", "Manager score", "EDGAR"]
+    assert {"latest_total_amount_sold", "latest_n_investors", "first_filing_date"} <= set(fheader)
+    assert funds.max_row - 1 == 3  # Heron's two funds and Teal's one
+
+    people = [[c.value for c in row] for row in wb["People"].iter_rows()]
+    assert people[0] == ["Manager", "Name", "Roles", "Fund", "Filing date", "EDGAR"]
+    assert people[1][:4] == ["Heron Capital Management LLC", "Jane Q. Doe", "Executive Officer",
+                             "Heron Master Fund LP"]
+    assert wb["People"]["F2"].hyperlink.target == (
+        "https://www.sec.gov/Archives/edgar/data/7000000001/700000000126000001/")
+
+    reasons = [[c.value for c in row] for row in wb["Reasons"].iter_rows()]
+    assert reasons[0] == ["Manager ID", "Manager", "Code", "Reason", "Points", "Detail"]
+    assert reasons[1][2:5] == ["raised", "raised money", 25]
+    about = {r[0].value: r[1].value for r in wb["About"].iter_rows() if r[0].value}
+    assert about["Managers"] == 2 and about["People named"] == 1 and about["raised"] == "raised money"
