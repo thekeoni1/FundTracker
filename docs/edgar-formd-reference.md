@@ -109,7 +109,7 @@ Form Type   Company Name                          CIK       Date Filed  File Nam
 D           Axiaris Capital Management Fund, LP   2158817   20261028    edgar/data/2158817/0002158817-26-000001.txt
 ```
 
-Parse by skipping to the dashes line, then slicing by the column offsets found in the header line (or splitting on runs of 2+ spaces). Company names contain single spaces, so never split on a single space. The `File Name` path gives CIK and accession; replace the trailing `.txt` with `/primary_doc.xml` after removing dashes from the accession to reach the folder.
+Parse by skipping to the dashes line, then reading each row from the right: the last field is the file name, then date filed, then CIK, and the remainder on the left is form type followed by company name. Do not slice by header offsets: the header text has not changed since 2009, but from 2025 the Form Type column widened from 12 to 17 characters, so header offsets mis-slice current files (found by WP3, confirmed on 17 real indexes from 2009 to 2026). Company names contain single spaces, so never split on a single space. The `File Name` path gives CIK and accession; replace the trailing `.txt` with `/primary_doc.xml` after removing dashes from the accession to reach the folder.
 
 Volume: 2026 Q3 data set shows 10,291 `D` and 5,661 `D/A` for the quarter, roughly 160 new notices per business day across all industries, of which about 8 per day are `Hedge Fund` new notices.
 
