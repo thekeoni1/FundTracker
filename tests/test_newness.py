@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ from fundtracker.db import repo
 from fundtracker.newness import WEIGHTS, score_launch
 
 sys.path.insert(0, str(Path(__file__).parent))
+import test_derive  # noqa: E402
 from test_derive import all_fixtures  # noqa: E402
 
 # A fund that triggers nothing on its own.
@@ -22,7 +24,7 @@ QUIET_FUND = {
 
 def facts(*funds, **overrides):
     base = {"window_start": "2026-10-28", "key_seen_before": True, "prior_funds": 0,
-            "signer_titles": [], "platform_keys": [], "funds": list(funds) or [dict(QUIET_FUND)]}
+            "signer_titles": [], "platforms": [], "funds": list(funds) or [dict(QUIET_FUND)]}
     base.update(overrides)
     return base
 
@@ -107,10 +109,31 @@ def test_pe_vc_re_name_penalty():
     assert score == 80  # 100 - 20
 
 
-def test_platform_reason_has_no_points():
-    score, reasons = score_launch(facts(platform_keys=["BELLTOWER FUND GROUP", "SYDECAR"]))
-    assert (score, reasons) == (0, [{"code": "platform", "points": 0,
-                                     "detail": "BELLTOWER FUND GROUP, SYDECAR"}])
+def test_platform_reason_has_no_points_and_names_each_organisation():
+    platforms = [("Belltower Fund Group, Ltd.", 14_000), ("Sydecar LLC", 3_100)]
+    score, reasons = score_launch(facts(platforms=platforms))
+    assert reasons[-1] == {"code": "platform", "points": 0,
+                           "detail": "Belltower Fund Group, Ltd. (14,000 funds), Sydecar LLC (3,100 funds)"}
+    assert score == 0
+
+
+NEW_VEHICLE = dict(n_filings=1, year_of_inc_choice="withinFiveYears", year_of_inc_value=2026)
+
+
+@pytest.mark.parametrize("platform", [("AQR Capital Management, LLC", 615),
+                                      ("Belltower Fund Group, Ltd.", 14_000)])
+def test_an_over_cap_entity_means_established_not_new(platform):
+    score, reasons = score_launch(facts(fund(**NEW_VEHICLE), key_seen_before=False,
+                                        platforms=[platform]))
+    assert codes(reasons) == ["single_filing", "newly_formed", "established_manager", "platform"]
+    assert reasons[2]["detail"] == f"{platform[0]} is named on {platform[1]:,} funds"
+    assert 0 <= score <= 10
+
+
+def test_established_by_fund_count_is_not_applied_twice():
+    _score, reasons = score_launch(facts(prior_funds=7, platforms=[("AQR Capital Management, LLC", 615)]))
+    assert codes(reasons) == ["established_manager", "platform"]
+    assert reasons[0]["detail"].startswith("manager has 7 funds")
 
 
 def test_clamped_to_0_and_100():
@@ -147,3 +170,49 @@ def test_derive_scores_the_real_axiaris_fixture():
     assert row["newness_score"] >= 85
     assert [r["code"] for r in reasons][:3] == ["new_manager", "single_filing", "sale_yet_to_occur"]
     assert all(r["newness_score"] is not None for r in conn.execute("SELECT newness_score FROM launch"))
+
+
+def over_cap_world(conn, shared):
+    """ENTITY_KEY_CAP + 1 older funds sharing shared (an entity related person, or an
+    issuer address when shared is a dict), then a fund filed on 2026-10-28 with it too;
+    return that launch's score and reasons."""
+    base = test_derive.fixture("0002158817-26-000001")
+    person = base.related_persons[0]
+    n_old = derive.ENTITY_KEY_CAP + 1 if not isinstance(shared, dict) else derive.SERVICE_PROVIDER_CAP + 1
+    for n in range(n_old + 1):
+        day = "2026-10-28" if n == n_old else "2024-01-02"
+        f = test_derive.lone(base, n, f"Vehicle {n} LP", day)
+        if isinstance(shared, dict):
+            f = dataclasses.replace(f, issuers=tuple(dataclasses.replace(i, **shared) for i in f.issuers))
+        else:
+            f = dataclasses.replace(f, related_persons=(
+                dataclasses.replace(person, accession=f.accession, first="N/A", middle=None, last=shared,
+                                    name_norm=shared.upper().replace(",", "").replace(".", ""),
+                                    is_entity=True),))
+        if n == n_old and not isinstance(shared, dict):
+            # Only single_filing and newly_formed (the Axiaris base is incorporated in 2026).
+            f = dataclasses.replace(f, offering=dataclasses.replace(
+                f.offering, sale_yet_to_occur=False, total_amount_sold_num=1_000_000,
+                n_investors=3, exemptions=("06b", "3C.1"), min_investment_num=None))
+        repo.upsert_filing(conn, f)
+    derive.run(conn)
+    cik = f"{7000000000 + n_old:010d}"
+    row = conn.execute("SELECT * FROM launch WHERE anchor_cik = ?", (cik,)).fetchone()
+    return row["newness_score"], json.loads(row["newness_reasons"])
+
+
+@pytest.mark.parametrize("entity", ["AQR Capital Management, LLC", "Belltower Fund Group, Ltd."])
+def test_derive_scores_a_launch_on_an_over_cap_entity_as_established(entity):
+    score, reasons = over_cap_world(repo.connect(":memory:"), entity)
+    assert "new_manager" not in codes(reasons)
+    assert {"established_manager", "platform"} <= set(codes(reasons))
+    assert reasons[-1]["detail"] == f"{entity} ({derive.ENTITY_KEY_CAP + 2:,} funds)"
+    assert 0 <= score <= 10
+
+
+def test_derive_keeps_new_manager_when_only_an_agent_address_is_over_cap():
+    score, reasons = over_cap_world(repo.connect(":memory:"),
+                                    {"street1": "251 Little Falls Drive", "zip": "19808"})
+    assert codes(reasons)[0] == "new_manager"
+    assert "platform" not in codes(reasons) and "established_manager" not in codes(reasons)
+    assert score >= 70

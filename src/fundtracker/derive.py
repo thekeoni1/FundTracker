@@ -439,9 +439,11 @@ def launch_scorer(conn):
     """A score(launch, funds) for build_launches, with the facts newness needs.
 
     Reads, once per run: for each pooled fund, the earliest date any of its
-    keys under the cap was seen on any filing; its over-cap keys; the
-    signer titles on its first filing; and each manager's fund first-filing
-    dates, to count funds filed before a launch.
+    keys under the cap was seen on any filing; its over-cap entity keys, as
+    display name and fund count; the signer titles on its first filing; and
+    each manager's fund first-filing dates, to count funds filed before a
+    launch. Over-cap phone and address keys belong to registered agents and
+    administrators and say nothing about the manager, so they are not read.
     """
     from bisect import bisect_left
 
@@ -457,10 +459,7 @@ def launch_scorer(conn):
         SELECT lk.cik, min(seen.first_seen) FROM link_key lk JOIN seen USING (kind, key)
         WHERE lk.over_cap = 0 AND lk.cik IN ({pooled}) GROUP BY lk.cik
         """).fetchall())
-    platforms = defaultdict(set)
-    for r in conn.execute(f"SELECT cik, kind, key FROM link_key WHERE over_cap = 1 "
-                          f"AND kind != 'entity_tokens' AND cik IN ({pooled})"):
-        platforms[r["cik"]].add(r["key"] if r["kind"] == "entity_stem" else f"{r['kind']} {r['key']}")
+    platforms = _over_cap_entities(conn, pooled)
     titles = defaultdict(list)
     for r in conn.execute(f"SELECT f.cik, s.title FROM fund f JOIN signature s "
                           f"ON s.accession = f.first_accession WHERE f.cik IN ({pooled})"):
@@ -478,12 +477,42 @@ def launch_scorer(conn):
             "key_seen_before": bool(seen) and min(seen) < start,
             "prior_funds": bisect_left(manager_dates[launch["manager_id"]], start),
             "signer_titles": [t for f in funds for t in titles.get(f["cik"], ())],
-            "platform_keys": sorted({k for f in funds for k in platforms.get(f["cik"], ())}),
+            "platforms": _merge_platforms(p for f in funds for p in platforms.get(f["cik"], ())),
             "funds": [dict(f, exemptions=json.loads(f["exemptions"])) for f in funds],
         }
         return newness.score_launch(facts)
 
     return score
+
+
+def _over_cap_entities(conn, ciks_sql):
+    """cik -> {(display name, number of CIKs on the key)} for the over-cap entity keys of
+    the CIKs ciks_sql selects. A key's display name is the one most of its CIKs use."""
+    names, sizes = {}, {}
+    displays = defaultdict(lambda: defaultdict(int))
+    for r in conn.execute("SELECT kind, key, display, count(*) AS n FROM link_key "
+                          "WHERE over_cap = 1 AND kind IN ('entity_stem', 'entity_tokens') "
+                          "GROUP BY kind, key, display"):
+        k = (r["kind"], r["key"])
+        sizes[k] = sizes.get(k, 0) + r["n"]
+        displays[k][r["display"] or r["key"]] += r["n"]
+    for k, counts in displays.items():
+        names[k] = most_frequent(counts)
+    out = defaultdict(set)
+    for r in conn.execute(f"SELECT cik, kind, key FROM link_key WHERE over_cap = 1 "
+                          f"AND kind IN ('entity_stem', 'entity_tokens') AND cik IN ({ciks_sql})"):
+        k = (r["kind"], r["key"])
+        out[r["cik"]].add((names[k], sizes[k]))
+    return out
+
+
+def _merge_platforms(pairs):
+    """Sorted [(name, n), ...] with one entry per name, at its largest count. A stem key
+    and its sorted-token key usually name the same organisation with different counts."""
+    best = {}
+    for name, n in pairs:
+        best[name] = max(n, best.get(name, 0))
+    return sorted(best.items())
 
 
 DERIVE_SOURCE = "derive"
