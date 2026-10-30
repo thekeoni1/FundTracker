@@ -3,20 +3,38 @@
 backfill loads the quarterly data sets. Each quarter is one transaction that
 also writes its ingest_log row, so a quarter is either fully loaded and
 marked ok, or absent and marked error.
+
+daily loads one day's Form D filings from the daily form index. Each filing
+commits on its own, so a run that stops halfway keeps what it loaded and the
+next run fetches only the rest.
 """
 
 import logging
 import time
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from datetime import date, datetime, timezone
 
 from fundtracker import config
 from fundtracker.db import repo
 from fundtracker.edgar import datasets
+from fundtracker.edgar import index as daily_index
 from fundtracker.edgar.datasets import Quarter
+from fundtracker.edgar.formd_xml import parse_formd
 
 log = logging.getLogger(__name__)
 
 DATASET_SOURCE = "dataset"
+DAILY_SOURCE = "daily"
+
+
+@dataclass
+class DailyResult:
+    day: str
+    status: str  # ok | no_index | error
+    listed: int = 0  # distinct D and D/A accessions in the index
+    already_present: int = 0
+    loaded: int = 0
+    errors: list = field(default_factory=list)  # (accession, message)
 
 
 def _now():
@@ -72,3 +90,67 @@ def _bound(value):
     if isinstance(value, str):
         value = Quarter.parse(value)
     return (value.year, value.q)
+
+
+def daily(conn, client, day):
+    """Load every D and D/A filing listed in day's form index that is not already stored.
+
+    day is a date or ISO string and is the ingest_log key. Each filing's
+    filing_date is the index row's Date Filed, which can be earlier than day.
+    A 404 for the index (weekend, holiday) is logged as no_index. A filing
+    that fails to fetch or parse is logged and skipped; the day is ok if
+    anything loaded or nothing needed loading, and error otherwise.
+    """
+    if isinstance(day, str):
+        day = date.fromisoformat(day)
+    key = day.isoformat()
+    started = _now()
+    result = DailyResult(day=key, status="ok")
+
+    try:
+        response = client.get(daily_index.form_index_url(day))
+        if response.status_code == 404:
+            result.status = "no_index"
+            with conn:
+                repo.log_ingest(conn, DAILY_SOURCE, key, "no_index", n_rows=0,
+                                started_at=started, finished_at=_now())
+            return result
+        response.raise_for_status()
+        rows = daily_index.formd_rows(daily_index.parse_form_index(response.text))
+    except Exception as exc:
+        result.status = "error"
+        result.errors.append((None, f"{type(exc).__name__}: {exc}"))
+        with conn:
+            repo.log_ingest(conn, DAILY_SOURCE, key, "error", n_rows=0, started_at=started,
+                            finished_at=_now(), error=f"index: {type(exc).__name__}: {exc}")
+        return result
+
+    result.listed = len(rows)
+    present = repo.accessions_present(conn, [r.accession for r in rows])
+    result.already_present = len(present)
+    for row in rows:
+        if row.accession in present:
+            continue
+        try:
+            xml = client.get_cached(daily_index.primary_doc_url(row.cik, row.accession))
+            filing = parse_formd(xml, row.accession, cik_hint=row.cik, filing_date=row.date_filed)
+            repo.upsert_filing(conn, filing)
+            result.loaded += 1
+        except Exception as exc:  # one bad filing must not stop the day
+            log.warning("%s: %s %s failed: %s", key, row.form_type, row.accession, exc)
+            result.errors.append((row.accession, f"{type(exc).__name__}: {exc}"))
+
+    wanted = result.listed - result.already_present
+    if result.errors and result.loaded == 0 and wanted > 0:
+        result.status = "error"
+    note = None
+    if result.errors:
+        shown = "; ".join(f"{a} {m}" for a, m in result.errors[:5])
+        more = f"; and {len(result.errors) - 5} more" if len(result.errors) > 5 else ""
+        note = f"{len(result.errors)} of {wanted} filings failed: {shown}{more}"
+    with conn:
+        repo.log_ingest(conn, DAILY_SOURCE, key, result.status, n_rows=result.loaded,
+                        started_at=started, finished_at=_now(), error=note)
+    log.info("%s: %d listed, %d already stored, %d loaded, %d failed", key, result.listed,
+             result.already_present, result.loaded, len(result.errors))
+    return result
