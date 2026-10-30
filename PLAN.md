@@ -188,7 +188,7 @@ Idempotency rule: every writer upserts on the natural key and every step is reco
 
 ### 7.6 Emerging managers (traction score, `traction.py`)
 
-A second ranking for a different question: not "what launched this week" but "which small shops launched 6 to 18 months ago and are working". The unit is the manager. Candidates are managers whose first filing falls in the age window, excluding over-cap organisations and managers with 20 or more funds. The traction score adds points for amount sold, investors, an amendment after the first notice, a second vehicle and recent filing activity, and subtracts for size or nothing raised; weights live in `TRACTION_WEIGHTS`. The manager row carries the individual related persons from the latest filings so the user can address a founder by name. Exposed as `fundtracker emerging` with its own workbook.
+A second ranking for a different question: not "what launched this week" but "which small shops launched 6 to 18 months ago and are working". The unit is the manager. Candidates are managers whose first filing falls in the age window, excluding over-cap organisations and managers with 20 or more funds. The traction score adds points for amount sold (as a band with a sweet spot of 5,000,000 to 100,000,000 and penalties above 500,000,000, because multi-billion raises are new series of large institutions), investors, an amendment after the first notice, a second vehicle and recent filing activity, and subtracts for size or nothing raised; weights live in `TRACTION_WEIGHTS`. Hedge mode keeps only managers with a Hedge Fund vehicle; the 3(c) admission rule is for `new` only. A zero-point `prior_firm` label names a large manager the people previously filed with. The manager row carries the individual related persons from the latest filings so the user can address a founder by name. Exposed as `fundtracker emerging` with its own workbook.
 
 ## 8. User interface
 
@@ -294,6 +294,16 @@ Deliver: traction columns on `manager` built by `derive`; `traction.py` with `TR
 Done when: the default hedge window lists managers 6 to 18 months old with no over-cap organisations, and the user accepts the workbook.
 
 Brief: "Implement WP4c from docs/SESSIONS.md Session 6: the emerging managers ranking by traction, with people named from the filings, as a CLI command and workbook."
+
+### WP4d: Emerging ranking tuning and data directory move
+
+Depends on: WP4c and the user's review of 2026-10-30.
+
+Deliver: raised-amount band scoring, Hedge Fund only in hedge mode, `prior_firm` label, people-name residue cleanup, `FUNDTRACKER_DATA_DIR` override and a one-time move of the database and caches out of the OneDrive folder.
+
+Done when: no top-20 emerging manager raised more than 500,000,000 or lacks a Hedge Fund vehicle, the database lives outside OneDrive, and the user accepts the workbook.
+
+Brief: "Implement WP4d from docs/SESSIONS.md Session 7."
 
 ### WP5: Web UI
 
