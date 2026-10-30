@@ -108,6 +108,9 @@ def download_quarter(client, quarter, dest_dir):
 # Reading a quarter zip
 
 TSV_FILES = ("FORMDSUBMISSION", "OFFERING", "ISSUERS", "RELATEDPERSONS", "RECIPIENTS", "SIGNATURES")
+# Must be present. The others may be left out of a quarter that has no rows
+# for them: 2008q2_d.zip has no RECIPIENTS.tsv.
+REQUIRED_TSV_FILES = ("FORMDSUBMISSION", "OFFERING")
 
 # Column -> (kind, model field). Kinds are converted by _convert below:
 #   text      none_to_null
@@ -281,29 +284,39 @@ def read_quarter(zip_path):
 
 
 def tsv_headers(zip_path):
-    """{table: [header columns]} for the six TSVs in a quarter zip."""
+    """{table: [header columns]} for the TSVs present in a quarter zip."""
     result = {}
     with zipfile.ZipFile(zip_path) as zf:
         for name in TSV_FILES:
-            with _open_member(zf, name) as fh:
+            member = _member(zf, name)
+            if member is None:
+                continue
+            with _open_member(zf, member) as fh:
                 result[name] = next(csv.reader(fh, delimiter="\t", quoting=csv.QUOTE_NONE))
     return result
 
 
-def _open_member(zf, name):
-    """The one <name>.tsv in the zip, whatever quarter folder it sits in."""
+def _member(zf, name):
+    """The name of the one <name>.tsv in the zip, whatever folder it sits in, or None."""
     wanted = f"{name}.tsv".upper()
     matches = [m for m in zf.namelist() if PurePosixPath(m).name.upper() == wanted]
-    if len(matches) != 1:
+    if len(matches) > 1 or (not matches and name in REQUIRED_TSV_FILES):
         raise ValueError(f"{zf.filename}: expected one {name}.tsv, found {matches}")
-    return io.TextIOWrapper(zf.open(matches[0]), encoding="utf-8", errors="replace", newline="")
+    return matches[0] if matches else None
+
+
+def _open_member(zf, member):
+    return io.TextIOWrapper(zf.open(member), encoding="utf-8", errors="replace", newline="")
 
 
 def _read_tsv(zf, name):
-    """Rows of one TSV, converted to model field names and values."""
+    """Rows of one TSV, converted to model field names and values; [] if it is absent."""
     csv.field_size_limit(1 << 30)
     columns = COLUMNS[name]
-    with _open_member(zf, name) as fh:
+    member = _member(zf, name)
+    if member is None:
+        return []
+    with _open_member(zf, member) as fh:
         reader = csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE)
         return [_clean_address(_convert(raw, columns)) for raw in reader]
 

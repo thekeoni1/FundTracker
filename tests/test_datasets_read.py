@@ -202,3 +202,16 @@ def test_missing_table_is_an_error(tmp_path):
         zf.writestr("2026Q3_d/FORMDSUBMISSION.tsv", "\t".join(HEADERS["FORMDSUBMISSION"]) + "\n")
     with pytest.raises(ValueError, match="OFFERING"):
         list(datasets.read_quarter(path))
+
+
+def test_missing_child_table_reads_as_empty(tmp_path):
+    """2008q2_d.zip has no RECIPIENTS.tsv."""
+    path = build_zip(tmp_path / "q.zip", ROWS)
+    trimmed = tmp_path / "no_recipients.zip"
+    with zipfile.ZipFile(path) as src, zipfile.ZipFile(trimmed, "w") as out:
+        for name in src.namelist():
+            if not name.endswith("RECIPIENTS.tsv"):
+                out.writestr(name, src.read(name))
+    (f,) = datasets.read_quarter(trimmed)
+    assert f.recipients == () and len(f.related_persons) == 3
+    assert "RECIPIENTS" not in datasets.tsv_headers(trimmed)
