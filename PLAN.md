@@ -343,9 +343,15 @@ Done when: a stranger can clone, follow the README and be running the site in te
 
 Brief: "Implement WP6 from docs/SESSIONS.md Session 9."
 
-### WP7 (optional, later): enrichment
+### WP7: Form ADV enrichment
 
-Candidates, each its own package when wanted: Form ADV matching for manager AUM and registration status; Atom feed intraday refresh; EDGAR full-text search in the search box; email delivery of the digest; a "similar launches" view based on shared recipients (placement agents).
+Depends on: WP6 (accepted 2026-10-30). Source verified 2026-10-30, reference section 8.
+
+Deliver: `ingest adv` loading the SEC's monthly registered and exempt adviser CSVs into an `adviser` table (latest snapshot); matching in `derive` to `manager_adviser` with confidence tiers (name or unique phone high, unique address or hedge-fund tie-break medium, otherwise candidates only; keys shared by more than 20 advisers ignored); website, employees, RAUM, adviser kind and the SEC's hedge fund count on the Emerging page, workbook and manager page, with adviser and employee-band filters and an IAPD link. No traction weight change until the user has seen the data.
+
+Done when: both files load and reload idempotently; MALT Partners shows 2 employees and RAUM 36,321,031; the Emerging page filters by adviser kind and employee band; coverage numbers are in PROGRESS.md; the user accepts the enriched page.
+
+Brief: "Implement WP7 from docs/SESSIONS.md Session 10."
 
 ## 10. Decisions taken and decisions left open
 

@@ -187,7 +187,38 @@ Returns `cik`, `name`, `entityType`, `sic`, `stateOfIncorporation`, and `filings
 - The path must be `/LATEST/` in capitals. A plain curl was refused during testing while a browser-like fetch of the same URL worked, so expect strict agent checks.
 - Useful for a "search by manager name" box. Not needed for ingestion.
 
-## 8. Possible future enrichment (not verified)
+## 8. Form ADV enrichment (verified 2026-10-30)
 
-- Form ADV bulk data (adviser registrations; Schedule D 7.B.1 lists each private fund with gross asset value and fund type). SEC publishes periodic extracts; URL and format **verify**. Matching key would be the adviser name from related persons.
-- IAPD public site `adviserinfo.sec.gov` for manual lookups.
+Form D says nothing about a manager's website, headcount or assets. Form ADV, filed by investment advisers, does. Two public routes exist; only the first is usable from a script.
+
+### 8.1 Monthly bulk files (the source to use)
+
+Page: `https://www.sec.gov/data-research/sec-markets-data/information-about-registered-investment-advisers-exempt-reporting-advisers`. It links one file for registered investment advisers (RIA) and one for exempt reporting advisers (ERA) per month, under `/files/investment/data/other/information-about-registered-investment-advisers-exempt-reporting-advisers/` (older months under `/files/data/`). Names vary month to month: `ia100226.zip` and `ia100226-exempt.zip` (October 2026), `ia09012026-registered.zip` and `ia09012026-exempt.zip`, `ia08032026_1.zip`. Some months are a PDF saying no data. Discover by scraping the page, as with the Form D data sets; do not build names.
+
+Each zip holds one CSV (the registered file 42 MB, 17,210 rows, 448 columns; the exempt file 6.7 MB, 6,778 rows, 171 columns, October 2026). Headers are Form ADV item labels. The useful ones:
+
+| Column | Meaning | In exempt file |
+| --- | --- | --- |
+| `Organization CRD#` | adviser identifier, key for IAPD links | yes |
+| `SEC#`, `Firm Type`, `SEC Current Status`, `Latest ADV Filing Date` | registration | yes |
+| `CIK#` | the adviser's own EDGAR CIK when it has one | yes |
+| `Primary Business Name`, `Legal Name` | names (upper case) | yes |
+| `Main Office Street Address 1`, `City`, `State`, `Country`, `Postal Code`, `Main Office Telephone Number` | office | yes |
+| `Website Address` | website, often blank for small shops | yes |
+| `5A` | total employees | no |
+| `5B(1)` | employees performing advisory functions | no |
+| `5F(2)(c)` | regulatory assets under management, formatted like `            36,321,031.00` | no |
+| `5F(2)(d)` | number of accounts | no |
+| `7B`, `Count of Private Funds - 7B(1)` | advises private funds, how many | yes |
+| `Any Hedge Funds`, `Total number of Hedge funds` | the SEC's own fund-type count | yes |
+| `Total Gross Assets of Private Funds` | gross assets of those funds | yes |
+
+Exempt reporting advisers file only Items 1, 2, 3, 6, 7, 10 and 11, so they carry no employee or RAUM figures. Most emerging hedge fund managers are ERAs.
+
+The private fund list with fund names (Schedule D 7.B.(1)) is not in these files. It was in the pre-2025 archive CSVs at `/foia/docs/form-adv-archive-data.htm`; since 2025 it is only on IAPD per firm.
+
+Matching to FundTracker managers, measured on the 780 emerging hedge managers (first seen 2025-04-30 to 2026-04-30): exact normalised name 61, entity related-person name 46, main office phone 231, main office address 236, any key 360 (46 percent); 184 hit more than one adviser through shared buildings and phones, so confidence tiers are needed. Of the 360, 141 RIA (employee counts available) and 219 ERA; 301 have a website. Example: MALT PARTNERS MANAGEMENT LLC, CRD 337855, RIA, 2 employees, RAUM 36,321,031, 2 hedge funds, no website.
+
+### 8.2 IAPD (adviserinfo.sec.gov)
+
+Firm search API works from a script: `https://api.adviserinfo.sec.gov/search/firm?query=<name>&nrows=5` returns JSON `hits.hits[]._source` with `firm_source_id` (the CRD), `firm_ia_full_sec_number`, `firm_name`, `firm_other_names`, `firm_ia_scope` and an address JSON string. Individual search `search/individual?query=<name>` works the same way. The per-firm summary `https://api.adviserinfo.sec.gov/firm/summary/<crd>` answers 403 to scripts regardless of headers; do not build on it. The human page is `https://adviserinfo.sec.gov/firm/summary/<crd>`, the right link target from a manager page.
