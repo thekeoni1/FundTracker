@@ -1,0 +1,211 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001546296</cik>
+        <entityName>Professional Diversity Network, Inc.</entityName>
+        <issuerAddress>
+            <street1>55 EAST MONROE STREET</street1>
+            <street2>SUITE 2120</street2>
+            <city>CHICAGO</city>
+            <stateOrCountry>IL</stateOrCountry>
+            <stateOrCountryDescription>ILLINOIS</stateOrCountryDescription>
+            <zipCode>60603</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>312-614-0950</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <previousName>Professional Diversity Network, LLC</previousName>
+        </edgarPreviousNameList>
+        <entityType>Corporation</entityType>
+        <yearOfInc>
+            <overFiveYears>true</overFiveYears>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Yiran</firstName>
+                <lastName>Gu</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>55 E. Monroe Street</street1>
+                <street2>Suite 2120</street2>
+                <city>Chicago</city>
+                <stateOrCountry>IL</stateOrCountry>
+                <stateOrCountryDescription>ILLINOIS</stateOrCountryDescription>
+                <zipCode>60603</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Zhang</firstName>
+                <lastName>Hao</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>55 E. Monroe Street</street1>
+                <street2>Suite 2120</street2>
+                <city>Chicago</city>
+                <stateOrCountry>IL</stateOrCountry>
+                <stateOrCountryDescription>ILLINOIS</stateOrCountryDescription>
+                <zipCode>60603</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Wai Kee</firstName>
+                <lastName>Cheung</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>55 E. Monroe Street</street1>
+                <street2>Suite 2120</street2>
+                <city>Chicago</city>
+                <stateOrCountry>IL</stateOrCountry>
+                <stateOrCountryDescription>ILLINOIS</stateOrCountryDescription>
+                <zipCode>60603</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Haixia</firstName>
+                <lastName>Lu</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>55 E. Monroe Street</street1>
+                <street2>Suite 2120</street2>
+                <city>Chicago</city>
+                <stateOrCountry>IL</stateOrCountry>
+                <stateOrCountryDescription>ILLINOIS</stateOrCountryDescription>
+                <zipCode>60603</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Tai</firstName>
+                <lastName>Song</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>55 E. Monroe Street</street1>
+                <street2>Suite 2120</street2>
+                <city>Chicago</city>
+                <stateOrCountry>IL</stateOrCountry>
+                <stateOrCountryDescription>ILLINOIS</stateOrCountryDescription>
+                <zipCode>60603</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Sze Lok Patrick</firstName>
+                <lastName>Wong</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>55 E. Monroe Street</street1>
+                <street2>Suite 2120</street2>
+                <city>Chicago</city>
+                <stateOrCountry>IL</stateOrCountry>
+                <stateOrCountryDescription>ILLINOIS</stateOrCountryDescription>
+                <zipCode>60603</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Other Technology</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$5,000,001 - $25,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2026-10-16</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>83334</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>249999</totalOfferingAmount>
+            <totalAmountSold>249999</totalAmountSold>
+            <totalRemaining>0</totalRemaining>
+            <clarificationOfResponse>On 10/16/2026, the Company entered into 3 Securities Purchase Agreements with 3 purchasers, pursuant to which the Company agreed to issue and sell to the Purchasers an aggregate of 146,713 shares. Closing is expected to occur on or around 11/3/2026.</clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <numberNonAccreditedInvestors>0</numberNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>3</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Professional Diversity Network, Inc.</issuerName>
+                <signatureName>/s/ Yiran Gu</signatureName>
+                <nameOfSigner>Yiran Gu</nameOfSigner>
+                <signatureTitle>Chief Executive Officer and Chief Financial Officer</signatureTitle>
+                <signatureDate>2026-10-27</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

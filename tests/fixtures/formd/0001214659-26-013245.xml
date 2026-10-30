@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0002153113</cik>
+        <entityName>Equera, Inc</entityName>
+        <issuerAddress>
+            <street1>3089 MAVISBANK CIRCLE</street1>
+            <city>APEX</city>
+            <stateOrCountry>NC</stateOrCountry>
+            <stateOrCountryDescription>NORTH CAROLINA</stateOrCountryDescription>
+            <zipCode>27502</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>+1 (734) 223-6202</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Corporation</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2025</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Danielle</firstName>
+                <lastName>Finch</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>3089 Mavisbank Circle</street1>
+                <city>Apex</city>
+                <stateOrCountry>NC</stateOrCountry>
+                <stateOrCountryDescription>NORTH CAROLINA</stateOrCountryDescription>
+                <zipCode>27502</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Emmanuel</firstName>
+                <middleName>Yaw Manu</middleName>
+                <lastName>Annor</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>KG 17 St</street1>
+                <city>Kigali</city>
+                <stateOrCountry>S6</stateOrCountry>
+                <stateOrCountryDescription>RWANDA</stateOrCountryDescription>
+                <zipCode>00000</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Other Technology</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$1 - $1,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2026-01-25</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isOptionToAcquireType>true</isOptionToAcquireType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>1000000</totalOfferingAmount>
+            <totalAmountSold>75000</totalAmountSold>
+            <totalRemaining>925000</totalRemaining>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>3</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>156000</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Equera, Inc</issuerName>
+                <signatureName>/s/ Danielle Finch</signatureName>
+                <nameOfSigner>Danielle Finch</nameOfSigner>
+                <signatureTitle>CEO &amp; Founder</signatureTitle>
+                <signatureDate>2026-10-26</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

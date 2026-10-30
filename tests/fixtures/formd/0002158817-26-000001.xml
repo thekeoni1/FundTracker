@@ -1,0 +1,147 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0002158817</cik>
+        <entityName>Axiaris Capital Management Fund, LP</entityName>
+        <issuerAddress>
+            <street1>3030 SUMMER STREET</street1>
+            <street2>UNIT 158</street2>
+            <city>HOUSTON</city>
+            <stateOrCountry>TX</stateOrCountry>
+            <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+            <zipCode>77007</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>2489219225</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Partnership</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2026</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Andrew</firstName>
+                <middleName>Cunningham</middleName>
+                <lastName>Murtland</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>3030 Summer Street</street1>
+                <street2>Unit 158</street2>
+                <city>Houston</city>
+                <stateOrCountry>TX</stateOrCountry>
+                <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+                <zipCode>77007</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Axiaris Capital Management</firstName>
+                <lastName>LLC</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>16192 Coastal Hwy</street1>
+                <city>Lewes</city>
+                <stateOrCountry>DE</stateOrCountry>
+                <stateOrCountryDescription>DELAWARE</stateOrCountryDescription>
+                <zipCode>19958</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Hedge Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <aggregateNetAssetValueRange>Decline to Disclose</aggregateNetAssetValueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06c</item>
+            <item>3C</item>
+            <item>3C.1</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <yetToOccur>true</yetToOccur>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>100000</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>25000000</totalOfferingAmount>
+            <totalAmountSold>0</totalAmountSold>
+            <totalRemaining>25000000</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>0</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Axiaris Capital Management Fund, LP</issuerName>
+                <signatureName>Andrew Murtland</signatureName>
+                <nameOfSigner>Andrew Murtland</nameOfSigner>
+                <signatureTitle>Managing Member of the General Partner</signatureTitle>
+                <signatureDate>2026-10-27</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

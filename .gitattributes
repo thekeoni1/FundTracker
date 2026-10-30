@@ -1,0 +1,2 @@
+# Keep fixture files byte-for-byte as downloaded from EDGAR.
+tests/fixtures/** -text

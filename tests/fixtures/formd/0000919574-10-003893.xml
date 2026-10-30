@@ -1,0 +1,128 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0704</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001467029</cik>
+        <entityName>400 Capital Credit Opportunities Fund LP</entityName>
+        <issuerAddress>
+            <street1>1120 Avenue of the Americas, Suite 1513</street1>
+            <city>New York</city>
+            <stateOrCountry>NY</stateOrCountry>
+            <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+            <zipCode>10036</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>(212) 612-3104</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Partnership</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2009</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Chris</firstName>
+                <lastName>Hentemann</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1120 Avenue of the Americas, Suite 1513</street1>
+                <city>New York</city>
+                <stateOrCountry>NY</stateOrCountry>
+                <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                <zipCode>10036</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Mr. Hentemann is the managing member of 400 Capital GP LLC, the General Partner of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Hedge Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <aggregateNetAssetValueRange>Decline to Disclose</aggregateNetAssetValueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+            <item>3C</item>
+            <item>3C.7</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2010-03-01</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>250000</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>11850000</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>7</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </grossProceedsUsed>
+            <clarificationOfResponse>The General Partner (or its affiliate) is entitled to receive an annual management fee in an amount equal to a specified percentage of assets under management.</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>400 Capital Credit Opportunities Fund LP</issuerName>
+                <signatureName>/s/ Chris Hentemann</signatureName>
+                <nameOfSigner>Chris Hentemann</nameOfSigner>
+                <signatureTitle>Managing Member of the General Partner</signatureTitle>
+                <signatureDate>2010-06-15</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

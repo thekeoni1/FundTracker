@@ -1,0 +1,130 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0002159130</cik>
+        <entityName>Arrogate Capital Fund, LP</entityName>
+        <issuerAddress>
+            <street1>2731 TWIN OAKS WAY</street1>
+            <city>WELLINGTON</city>
+            <stateOrCountry>FL</stateOrCountry>
+            <stateOrCountryDescription>FLORIDA</stateOrCountryDescription>
+            <zipCode>33414</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>(917) 975-9276</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Partnership</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2026</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>-</firstName>
+                <lastName>Arrogate Capital Management, LLC</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>2731 TWIN OAKS WAY</street1>
+                <city>WELLINGTON</city>
+                <stateOrCountry>FL</stateOrCountry>
+                <stateOrCountryDescription>FLORIDA</stateOrCountryDescription>
+                <zipCode>33414</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Promoter</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>General Partner</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Hedge Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <aggregateNetAssetValueRange>Decline to Disclose</aggregateNetAssetValueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>3C</item>
+            <item>3C.7</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <yetToOccur>true</yetToOccur>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>0</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>0</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </grossProceedsUsed>
+            <clarificationOfResponse>The General Partner receives customary management fees.</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Arrogate Capital Fund, LP</issuerName>
+                <signatureName>/s/ Christian Bradeen</signatureName>
+                <nameOfSigner>Christian Bradeen</nameOfSigner>
+                <signatureTitle>Managing Member of the General Partner</signatureTitle>
+                <signatureDate>2026-10-27</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

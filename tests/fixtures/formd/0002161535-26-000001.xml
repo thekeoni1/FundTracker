@@ -1,0 +1,401 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0002161535</cik>
+        <entityName>GEF US Climate Solutions Fund III, L.P.</entityName>
+        <issuerAddress>
+            <street1>1812 N MOORE STREET, SUITE 1800</street1>
+            <city>ARLINGTON</city>
+            <stateOrCountry>VA</stateOrCountry>
+            <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+            <zipCode>22209</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>(202) 743-2898</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Partnership</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2026</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <issuerList>
+        <issuer>
+            <cik>0002161347</cik>
+            <entityName>GEF US Climate Solutions Parallel Fund III, L.P.</entityName>
+            <issuerAddress>
+                <street1>1812 N MOORE STREET, SUITE 1800</street1>
+                <city>ARLINGTON</city>
+                <stateOrCountry>VA</stateOrCountry>
+                <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+                <zipCode>22209</zipCode>
+            </issuerAddress>
+            <issuerPhoneNumber>(202) 743-2898</issuerPhoneNumber>
+            <jurisdictionOfInc>ONTARIO, CANADA</jurisdictionOfInc>
+            <issuerPreviousNameList>
+                <value>None</value>
+            </issuerPreviousNameList>
+            <edgarPreviousNameList>
+                <value>None</value>
+            </edgarPreviousNameList>
+            <entityType>Limited Partnership</entityType>
+            <yearOfInc>
+                <withinFiveYears>true</withinFiveYears>
+                <value>2026</value>
+            </yearOfInc>
+        </issuer>
+    </issuerList>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>n/a</firstName>
+                <lastName>GEF US CSF III Partners, L.P.</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1812 N Moore Street, Suite 1800</street1>
+                <city>Arlington</city>
+                <stateOrCountry>VA</stateOrCountry>
+                <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+                <zipCode>22209</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>General Partner of the Issuers (the &quot;GP&quot;)</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>n/a</firstName>
+                <lastName>GEF US CSF III GP, LLC</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1812 N Moore Street, Suite 1800</street1>
+                <city>Arlington</city>
+                <stateOrCountry>VA</stateOrCountry>
+                <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+                <zipCode>22209</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>General Partner of the GP (the &quot;Top GP&quot;)</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Stuart</firstName>
+                <middleName>Michael</middleName>
+                <lastName>Barkoff</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1812 N Moore Street, Suite 1800</street1>
+                <city>Arlington</city>
+                <stateOrCountry>VA</stateOrCountry>
+                <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+                <zipCode>22209</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Managing Director of the Top GP</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Daniel</firstName>
+                <lastName>Prawda</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1812 N Moore Street, Suite 1800</street1>
+                <city>Arlington</city>
+                <stateOrCountry>VA</stateOrCountry>
+                <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+                <zipCode>22209</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Managing Director of the Top GP</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>n/a</firstName>
+                <lastName>GEF U.S. Advisors, LLC</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1812 N Moore Street, Suite 1800</street1>
+                <city>Arlington</city>
+                <stateOrCountry>VA</stateOrCountry>
+                <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+                <zipCode>22209</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Manager of the Issuers (the &quot;Manager&quot;)</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>n/a</firstName>
+                <lastName>GEF Capital Partners, LLC</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1812 N Moore Street, Suite 1800</street1>
+                <city>Arlington</city>
+                <stateOrCountry>VA</stateOrCountry>
+                <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+                <zipCode>22209</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Sole Member of the Manager</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Private Equity Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>Decline to Disclose</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>3C</item>
+            <item>3C.1</item>
+            <item>3C.7</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <yetToOccur>true</yetToOccur>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+            <isOtherType>true</isOtherType>
+            <descriptionOfOtherType>Limited Partnership Interests</descriptionOfOtherType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>Asante Capital Group Advisors LLC</recipientName>
+                <recipientCRDNumber>155178</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>4th Floor, 25 Old Burlington Street</street1>
+                    <city>London</city>
+                    <stateOrCountry>X0</stateOrCountry>
+                    <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                    <zipCode>W1S 3AN</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>AL</state>
+                    <description>ALABAMA</description>
+                    <state>AK</state>
+                    <description>ALASKA</description>
+                    <state>AZ</state>
+                    <description>ARIZONA</description>
+                    <state>AR</state>
+                    <description>ARKANSAS</description>
+                    <state>CA</state>
+                    <description>CALIFORNIA</description>
+                    <state>CO</state>
+                    <description>COLORADO</description>
+                    <state>CT</state>
+                    <description>CONNECTICUT</description>
+                    <state>DE</state>
+                    <description>DELAWARE</description>
+                    <state>DC</state>
+                    <description>DISTRICT OF COLUMBIA</description>
+                    <state>FL</state>
+                    <description>FLORIDA</description>
+                    <state>GA</state>
+                    <description>GEORGIA</description>
+                    <state>HI</state>
+                    <description>HAWAII</description>
+                    <state>ID</state>
+                    <description>IDAHO</description>
+                    <state>IL</state>
+                    <description>ILLINOIS</description>
+                    <state>IN</state>
+                    <description>INDIANA</description>
+                    <state>IA</state>
+                    <description>IOWA</description>
+                    <state>KS</state>
+                    <description>KANSAS</description>
+                    <state>KY</state>
+                    <description>KENTUCKY</description>
+                    <state>LA</state>
+                    <description>LOUISIANA</description>
+                    <state>ME</state>
+                    <description>MAINE</description>
+                    <state>MD</state>
+                    <description>MARYLAND</description>
+                    <state>MA</state>
+                    <description>MASSACHUSETTS</description>
+                    <state>MI</state>
+                    <description>MICHIGAN</description>
+                    <state>MN</state>
+                    <description>MINNESOTA</description>
+                    <state>MS</state>
+                    <description>MISSISSIPPI</description>
+                    <state>MO</state>
+                    <description>MISSOURI</description>
+                    <state>MT</state>
+                    <description>MONTANA</description>
+                    <state>NE</state>
+                    <description>NEBRASKA</description>
+                    <state>NV</state>
+                    <description>NEVADA</description>
+                    <state>NH</state>
+                    <description>NEW HAMPSHIRE</description>
+                    <state>NJ</state>
+                    <description>NEW JERSEY</description>
+                    <state>NM</state>
+                    <description>NEW MEXICO</description>
+                    <state>NY</state>
+                    <description>NEW YORK</description>
+                    <state>NC</state>
+                    <description>NORTH CAROLINA</description>
+                    <state>ND</state>
+                    <description>NORTH DAKOTA</description>
+                    <state>OH</state>
+                    <description>OHIO</description>
+                    <state>OK</state>
+                    <description>OKLAHOMA</description>
+                    <state>OR</state>
+                    <description>OREGON</description>
+                    <state>PA</state>
+                    <description>PENNSYLVANIA</description>
+                    <state>RI</state>
+                    <description>RHODE ISLAND</description>
+                    <state>SC</state>
+                    <description>SOUTH CAROLINA</description>
+                    <state>SD</state>
+                    <description>SOUTH DAKOTA</description>
+                    <state>TN</state>
+                    <description>TENNESSEE</description>
+                    <state>TX</state>
+                    <description>TEXAS</description>
+                    <state>UT</state>
+                    <description>UTAH</description>
+                    <state>VT</state>
+                    <description>VERMONT</description>
+                    <state>VA</state>
+                    <description>VIRGINIA</description>
+                    <state>WA</state>
+                    <description>WASHINGTON</description>
+                    <state>WV</state>
+                    <description>WEST VIRGINIA</description>
+                    <state>WI</state>
+                    <description>WISCONSIN</description>
+                    <state>WY</state>
+                    <description>WYOMING</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+            <recipient>
+                <recipientName>Impactus Partners Ltd</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>nit 13, Chantry Park 2 Cowley Road</street1>
+                    <street2>Nuffield Industrial Estate, Poole</street2>
+                    <city>Dorset</city>
+                    <stateOrCountry>X0</stateOrCountry>
+                    <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                    <zipCode>BH17 0UJ</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList></statesOfSolicitationList>
+                <foreignSolicitation>true</foreignSolicitation>
+            </recipient>
+            <recipient>
+                <recipientName>FirstPoint Equity Capital Ltd</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>BA Securities, LLC</associatedBDName>
+                <associatedBDCRDNumber>153489</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>11 Bressenden Place</street1>
+                    <city>London</city>
+                    <stateOrCountry>X0</stateOrCountry>
+                    <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                    <zipCode>SW1E 5BY</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList></statesOfSolicitationList>
+                <foreignSolicitation>true</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>0</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>0</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>5000000</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse>GEF U.S. Advisors, LLC is entitled to a periodic fee for its investment management services in accordance with the organizational documents of the Issuer.</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>GEF US Climate Solutions Fund III, L.P.</issuerName>
+                <signatureName>/s/ Stuart Michael Barkoff</signatureName>
+                <nameOfSigner>Stuart Michael Barkoff</nameOfSigner>
+                <signatureTitle>Managing Director of the Top GP</signatureTitle>
+                <signatureDate>2026-10-27</signatureDate>
+            </signature>
+            <signature>
+                <issuerName>GEF US Climate Solutions Parallel Fund III, L.P.</issuerName>
+                <signatureName>/s/ Stuart Michael Barkoff</signatureName>
+                <nameOfSigner>Stuart Michael Barkoff</nameOfSigner>
+                <signatureTitle>Managing Director of the Top GP</signatureTitle>
+                <signatureDate>2026-10-27</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

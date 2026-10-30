@@ -1,0 +1,227 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D/A</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0002124823</cik>
+        <entityName>Private Market Securities Fund II, LLC Series A</entityName>
+        <issuerAddress>
+            <street1>1 E BROWARD BLVD, STE 700</street1>
+            <city>FORT LAUDERDALE</city>
+            <stateOrCountry>FL</stateOrCountry>
+            <stateOrCountryDescription>FLORIDA</stateOrCountryDescription>
+            <zipCode>33301</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>7546630002</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Liability Company</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2026</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>-</firstName>
+                <lastName>PMSF Management LLC</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1 E Broward Blvd, STE 700</street1>
+                <city>Fort Lauderdale</city>
+                <stateOrCountry>FL</stateOrCountry>
+                <stateOrCountryDescription>FLORIDA</stateOrCountryDescription>
+                <zipCode>33301</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Manager of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Other Investment Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <aggregateNetAssetValueRange>Decline to Disclose</aggregateNetAssetValueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>3C</item>
+            <item>3C.7</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>true</isAmendment>
+                <previousAccessionNumber>0002124823-26-000001</previousAccessionNumber>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2026-02-27</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>PHX Financial, Inc.</recipientName>
+                <recipientCRDNumber>144403</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>100 Wall St, FL 21</street1>
+                    <city>New York</city>
+                    <stateOrCountry>NY</stateOrCountry>
+                    <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                    <zipCode>10005</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>AL</state>
+                    <description>ALABAMA</description>
+                    <state>AZ</state>
+                    <description>ARIZONA</description>
+                    <state>AR</state>
+                    <description>ARKANSAS</description>
+                    <state>CA</state>
+                    <description>CALIFORNIA</description>
+                    <state>CO</state>
+                    <description>COLORADO</description>
+                    <state>CT</state>
+                    <description>CONNECTICUT</description>
+                    <state>DE</state>
+                    <description>DELAWARE</description>
+                    <state>DC</state>
+                    <description>DISTRICT OF COLUMBIA</description>
+                    <state>FL</state>
+                    <description>FLORIDA</description>
+                    <state>GA</state>
+                    <description>GEORGIA</description>
+                    <state>IL</state>
+                    <description>ILLINOIS</description>
+                    <state>IN</state>
+                    <description>INDIANA</description>
+                    <state>IA</state>
+                    <description>IOWA</description>
+                    <state>KS</state>
+                    <description>KANSAS</description>
+                    <state>KY</state>
+                    <description>KENTUCKY</description>
+                    <state>LA</state>
+                    <description>LOUISIANA</description>
+                    <state>MD</state>
+                    <description>MARYLAND</description>
+                    <state>MA</state>
+                    <description>MASSACHUSETTS</description>
+                    <state>MI</state>
+                    <description>MICHIGAN</description>
+                    <state>MN</state>
+                    <description>MINNESOTA</description>
+                    <state>MO</state>
+                    <description>MISSOURI</description>
+                    <state>NE</state>
+                    <description>NEBRASKA</description>
+                    <state>NV</state>
+                    <description>NEVADA</description>
+                    <state>NJ</state>
+                    <description>NEW JERSEY</description>
+                    <state>NM</state>
+                    <description>NEW MEXICO</description>
+                    <state>NY</state>
+                    <description>NEW YORK</description>
+                    <state>NC</state>
+                    <description>NORTH CAROLINA</description>
+                    <state>ND</state>
+                    <description>NORTH DAKOTA</description>
+                    <state>OH</state>
+                    <description>OHIO</description>
+                    <state>OK</state>
+                    <description>OKLAHOMA</description>
+                    <state>OR</state>
+                    <description>OREGON</description>
+                    <state>PA</state>
+                    <description>PENNSYLVANIA</description>
+                    <state>SC</state>
+                    <description>SOUTH CAROLINA</description>
+                    <state>SD</state>
+                    <description>SOUTH DAKOTA</description>
+                    <state>TN</state>
+                    <description>TENNESSEE</description>
+                    <state>TX</state>
+                    <description>TEXAS</description>
+                    <state>UT</state>
+                    <description>UTAH</description>
+                    <state>VA</state>
+                    <description>VIRGINIA</description>
+                    <state>WA</state>
+                    <description>WASHINGTON</description>
+                    <state>WI</state>
+                    <description>WISCONSIN</description>
+                    <state>WY</state>
+                    <description>WYOMING</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>59409033</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>349</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>5790903</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>529478</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>1188180</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse>Management fee paid to PMSF Management LLC, the fund Manager</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Private Market Securities Fund II, LLC Series A</issuerName>
+                <signatureName>Kevin Chen</signatureName>
+                <nameOfSigner>Kevin Chen</nameOfSigner>
+                <signatureTitle>Manager of PMSF Management LLC, the Manager of the Issuer</signatureTitle>
+                <signatureDate>2026-10-27</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

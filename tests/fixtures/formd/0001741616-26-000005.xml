@@ -1,0 +1,200 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D/A</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001741616</cik>
+        <entityName>Callodine Capital Fund, LP</entityName>
+        <issuerAddress>
+            <street1>ONE INTERNATIONAL PLACE</street1>
+            <street2>SUITE 2710</street2>
+            <city>BOSTON</city>
+            <stateOrCountry>MA</stateOrCountry>
+            <stateOrCountryDescription>MASSACHUSETTS</stateOrCountryDescription>
+            <zipCode>02110</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>6178807480</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Partnership</entityType>
+        <yearOfInc>
+            <overFiveYears>true</overFiveYears>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>-</firstName>
+                <lastName>Callodine Capital Management, LP</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>One International Place</street1>
+                <street2>Suite 2710</street2>
+                <city>Boston</city>
+                <stateOrCountry>MA</stateOrCountry>
+                <stateOrCountryDescription>MASSACHUSETTS</stateOrCountryDescription>
+                <zipCode>02110</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Investment Manager</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>-</firstName>
+                <lastName>Callodine Capital Partners, LLC</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>One International Place</street1>
+                <street2>Suite 2710</street2>
+                <city>Boston</city>
+                <stateOrCountry>MA</stateOrCountry>
+                <stateOrCountryDescription>MASSACHUSETTS</stateOrCountryDescription>
+                <zipCode>02110</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>General Partner</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>James</firstName>
+                <lastName>Morrow</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>One International Place</street1>
+                <street2>Suite 2710</street2>
+                <city>Boston</city>
+                <stateOrCountry>MA</stateOrCountry>
+                <stateOrCountryDescription>MASSACHUSETTS</stateOrCountryDescription>
+                <zipCode>02110</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Hedge Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <aggregateNetAssetValueRange>Decline to Disclose</aggregateNetAssetValueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>3C</item>
+            <item>3C.7</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>true</isAmendment>
+                <previousAccessionNumber>0001741616-26-000003</previousAccessionNumber>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2018-07-05</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>1000000</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>none</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>Manning &amp; Napier Investor Services, Inc.</associatedBDName>
+                <associatedBDCRDNumber>26266</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>290 Woodcliff Drive</street1>
+                    <city>Fairport</city>
+                    <stateOrCountry>NY</stateOrCountry>
+                    <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                    <zipCode>14450</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <value>All States</value>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+            <recipient>
+                <recipientName>none</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>Agecroft Partners, LLC</associatedBDName>
+                <associatedBDCRDNumber>139227</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>103 Canterbury Road</street1>
+                    <city>Richmond</city>
+                    <stateOrCountry>VA</stateOrCountry>
+                    <stateOrCountryDescription>VIRGINIA</stateOrCountryDescription>
+                    <zipCode>23221</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <value>All States</value>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>305445848</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>61</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse>Callodine Capital Partners, LLC and Callodine Capital Management, LP (affiliates of the Issuer) have entered into a placement agent agreement with the entities named in Item 12 and will be responsible for paying any commissions owed.</clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse>The Investment Manager receives customary management fees and the General Partner may receive incentive allocations based on the fund's investment performance, as outlined in the offering documents.</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Callodine Capital Fund, LP</issuerName>
+                <signatureName>James Morrow</signatureName>
+                <nameOfSigner>James Morrow</nameOfSigner>
+                <signatureTitle>Managing Member of the General Partner</signatureTitle>
+                <signatureDate>2026-10-27</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

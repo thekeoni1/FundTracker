@@ -1,0 +1,326 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0707</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001635511</cik>
+        <entityName>AQR OFFSHORE MULTI-STRATEGY FUND XIV, L.P.</entityName>
+        <issuerAddress>
+            <street1>C/O ELIAN FIDUCIARY SVCS. (CAYMAN) LTD.</street1>
+            <street2>89 NEXUS WAY</street2>
+            <city>CAMANA BAY, GRAND CAYMAN</city>
+            <stateOrCountry>E9</stateOrCountry>
+            <stateOrCountryDescription>CAYMAN ISLANDS</stateOrCountryDescription>
+            <zipCode>KY1-9007</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>203-742-3600</issuerPhoneNumber>
+        <jurisdictionOfInc>CAYMAN ISLANDS</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Partnership</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2015</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Clifford</firstName>
+                <lastName>Asness</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Clifford Asness is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>John</firstName>
+                <lastName>Liew</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>John Liew is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Jacques</firstName>
+                <lastName>Friedman</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Jacques Friedman is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Brian</firstName>
+                <lastName>Hurst</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Brian Hurst is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Ronen</firstName>
+                <lastName>Israel</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Ronen Israel is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Michael</firstName>
+                <lastName>Katz</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Michael Katz is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Michael</firstName>
+                <lastName>Mendelson</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Michael Mendelson is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Tobias</firstName>
+                <lastName>Moskowitz</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Tobias Moskowitz is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Yao Hua</firstName>
+                <lastName>Ooi</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Yao Hua Ooi is an Executive Officer of AQR Capital Management, LLC, the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Bradley</firstName>
+                <lastName>Asness</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o AQR Capital Management, LLC</street1>
+                <street2>Two Greenwich Plaza</street2>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Bradley Asness is a Director of AQR Capital Management GP Ltd., the General Partner of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Management, LLC</firstName>
+                <lastName>AQR Capital</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Two Greenwich Plaza</street1>
+                <city>Greenwich</city>
+                <stateOrCountry>CT</stateOrCountry>
+                <stateOrCountryDescription>CONNECTICUT</stateOrCountryDescription>
+                <zipCode>06830</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>AQR Capital Management, LLC is the Investment Manager of the Issuer.</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Management GP Ltd.</firstName>
+                <lastName>AQR Capital</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o Elian Fiduciary Services(Cayman) Ltd</street1>
+                <street2>89 Nexus Way</street2>
+                <city>Camana Bay</city>
+                <stateOrCountry>E9</stateOrCountry>
+                <stateOrCountryDescription>CAYMAN ISLANDS</stateOrCountryDescription>
+                <zipCode>KY1-9007</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Promoter</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Hedge Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <aggregateNetAssetValueRange>Decline to Disclose</aggregateNetAssetValueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>3C</item>
+            <item>3C.7</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2015-06-01</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>5000000</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>210415188</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>1</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse>The investment manager (or its affiliate) is entitled to receive an annual management fee in an amount equal to a specified percentage of assets under management.</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>AQR OFFSHORE MULTI-STRATEGY FUND XIV, L.P.</issuerName>
+                <signatureName>Bradley D. Asness</signatureName>
+                <nameOfSigner>Bradley D. Asness</nameOfSigner>
+                <signatureTitle>Director of General Partner</signatureTitle>
+                <signatureDate>2015-06-15</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>
