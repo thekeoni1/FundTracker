@@ -114,7 +114,7 @@ FundTracker/
 - `related_person` — `accession`, `seq`, `first`, `middle`, `last`, address fields, `relationships` (JSON array), `clarification`, plus derived `name_norm` and `is_entity`. PK `(accession, seq)`.
 - `recipient` — `accession`, `seq`, `name`, `crd`, `bd_name`, `bd_crd`, address fields, `states` (JSON), `foreign_solicitation`.
 - `signature` — `accession`, `seq`, `issuer_name`, `signature_name`, `signer`, `title`, `date`, derived `signer_norm`.
-- `ingest_log` — `source`, `key` (e.g. `2026-10-28` or `2026q3`), `status`, `n_rows`, `started_at`, `finished_at`, `error`. Makes every ingestion step idempotent and resumable.
+- `ingest_log` — `source`, `key` (e.g. `2026-10-28` or `2026q3`), `status`, `n_rows`, `started_at`, `finished_at`, `error`. Makes every ingestion step idempotent and resumable. A row is a total across runs for its key: a rerun that loads nothing leaves an `ok` or `no_index` row untouched, a rerun that loads more adds to `n_rows` and keeps the first `started_at`, and a failed rerun never downgrades an earlier `ok` row.
 
 ### Derived tables (rebuilt by `fundtracker derive`, cheap to recompute)
 
@@ -177,7 +177,7 @@ The weights live in one dict so they can be tuned without touching logic. The UI
 ### 7.5 Ingestion flows (`ingest.py`)
 
 - `backfill`: scrape the data sets page for zip links, download each missing quarter to `data/datasets/`, load TSVs into raw tables inside one transaction per quarter, mark `ingest_log`. Re-running skips loaded quarters. Then run `derive`.
-- `daily [--date]`: fetch `form.YYYYMMDD.idx`, take `D` and `D/A` rows, skip accessions already in `filing`, fetch each `primary_doc.xml` (cache to `data/raw/`), parse, upsert, log the day. Weekends and holidays yield a 404 for the index; log as `no_index` and move on.
+- `daily [--date]`: fetch `form.YYYYMMDD.idx`, take `D` and `D/A` rows, skip accessions already in `filing`, fetch each `primary_doc.xml` (cache to `data/raw/`), parse, upsert, log the day. Weekends and holidays have no index; EDGAR answers with a 403 carrying an S3 style AccessDenied XML body (never 404). The client returns that response without retrying, and `daily` logs the day as `no_index` and moves on. A 403 with the HTML rate-limit page is still retried.
 - `catchup`: iterate business days from the last successful `daily` to yesterday, calling `daily` for each. The UI and the CLI both call this on start so missed nights heal themselves.
 - `derive`: rebuild `fund`, `manager`, `fund_manager`, `launch`. Full rebuild is fine at this size (seconds to low minutes). Keep `review` untouched.
 - `reconcile <quarter>`: when a new quarterly zip appears, load it and report any accessions it contains that the daily path missed, then fill them.
@@ -252,7 +252,7 @@ Brief: "Implement WP2 from PLAN.md: discover, download and load the quarterly Fo
 
 Depends on: WP1. Can run in parallel with WP2.
 
-Deliver: `edgar/index.py` parsing `form.YYYYMMDD.idx` by header column offsets; `ingest.daily` and `ingest.catchup` per section 7.5, including 404 handling for non-business days; CLI commands `ingest daily` and `ingest catchup`; a fixture index file in tests.
+Deliver: `edgar/index.py` parsing `form.YYYYMMDD.idx` by header column offsets; `ingest.daily` and `ingest.catchup` per section 7.5, including no-index handling for non-business days (a 403 AccessDenied body, see reference section 3); CLI commands `ingest daily` and `ingest catchup`; a fixture index file in tests.
 
 Done when: running `ingest daily --date <yesterday>` loads every `D` and `D/A` filing for that day and a second run fetches nothing; `catchup` after deleting three days of `ingest_log` refills exactly those days; the Axiaris example filing (reference section 2) round-trips with the expected values.
 

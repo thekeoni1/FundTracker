@@ -115,6 +115,8 @@ Volume: 2026 Q3 data set shows 10,291 `D` and 5,661 `D/A` for the quarter, rough
 
 Availability: the day's file appears after the nightly index build (around 22:00 ET or later). An ingest run at 06:00 local the next morning is safe.
 
+Missing days: a weekend, a market holiday (EDGAR was closed on 2026-10-12, Columbus Day) or a day whose index is not yet built does not return 404. EDGAR answers HTTP 403 with `Content-Type: application/xml` and an S3 style body beginning `<Error><Code>AccessDenied</Code>`. This is distinct from the rate-limit 403, which carries an HTML "Undeclared Automated Tool" page; tell them apart by the body, never by status alone, and do not retry the AccessDenied form. The quarter folder's `index.json` listing omits the missing day's files, which is the cheap way to audit a `no_index` weekday if a transient AccessDenied is ever suspected (found by WP3 on 2026-10-30).
+
 ## 4. Discovery path B: "Latest Filings" Atom feed (intraday, optional)
 
 `https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=D&count=100&output=atom` (add `&start=100`, `&start=200` to page; **verify** the maximum depth).
