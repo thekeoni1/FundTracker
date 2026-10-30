@@ -81,11 +81,14 @@ edgarSubmission
       signature (repeated)/{issuerName,signatureName,nameOfSigner,signatureTitle,signatureDate}
 ```
 
-Quirks seen in real filings:
-- Entity related persons are encoded inconsistently: `firstName="-"`, `lastName="VSC Ventures Fund I GP LLC"`; or `firstName="Axiaris Capital Management"`, `lastName="LLC"`. Normalisation must join all three name parts and then detect entity suffixes.
-- `issuerPreviousNameList/value` is the literal string `None` when empty.
-- Older filings use earlier schema versions (**verify** which; the parser must tolerate missing elements rather than assume X0708).
-- Exemption codes: `06b` = Rule 506(b); `06c` = Rule 506(c) (general solicitation permitted); `3C` + `3C.1` = Investment Company Act 3(c)(1) fund (max 100 beneficial owners); `3C` + `3C.7` = 3(c)(7) fund (qualified purchasers only). Hedge funds almost always carry 3C.1 or 3C.7.
+Quirks seen in real filings (the first four confirmed by WP1's fixture sampling on 2026-10-29):
+- `primary_doc.xml` carries no filing date. Take it from the daily index row or the data set's FILING_DATE and pass it to the parser.
+- Entity related persons are encoded three ways: `firstName="-"`, `lastName="VSC Ventures Fund I GP LLC"`; or `firstName="Axiaris Capital Management"`, `lastName="LLC"`; or reversed halves, `firstName="Management, LLC"`, `lastName="AQR Capital"` (AQR, 2015). Normalisation must join all three name parts, detect entity suffixes, and compare entity stems as sorted token sets so the reversed form still matches.
+- Placeholders vary in case: `None`, `none`, `N/A`, `n/a` and `-` all mean empty, in previous-name lists, entity first names and recipient names. Treat them case-insensitively.
+- Previous-name lists use either `<value>` children or `<previousName>` children.
+- Schema versions by filing year: X0401 (2009), X0704 (2010 to 2011), X0705 (2012), X0706 (2013), X0707 (2015 to 2017), X0708 (2018 onward; 2014 not sampled). No older version uses an element or nesting that X0708 lacks; files differ only in which optional elements the filer filled. One X0708 parser handles all of them.
+- Exemption codes: `06b` = Rule 506(b); `06c` = Rule 506(c) (general solicitation permitted); `06` alone = Rule 506 as filed before the 2013 rule change, treat as 506(b); `3C` + `3C.1` = Investment Company Act 3(c)(1) fund (max 100 beneficial owners); `3C` + `3C.7` = 3(c)(7) fund (qualified purchasers only). Hedge funds almost always carry 3C.1 or 3C.7.
+- The daily index lists a co-issued filing once per issuer CIK, so the same accession appears on several rows. De-duplicate on accession before fetching.
 
 ### Worked example: a brand-new hedge fund (filed 2026-10-28)
 
