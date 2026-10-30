@@ -326,13 +326,15 @@ Deliver: `review` table writes through the UI (status, notes, contacted date), i
 
 Brief: "Implement WP5 from PLAN.md: the local web UI (inbox, launch/fund detail, manager detail, search, export, status bar) over the existing database with Flask, Jinja2 and HTMX."
 
-### WP6: Scheduling, digest, documentation
+### WP6: Self-running, README, search index, digest, GitHub
 
-Depends on: WP5.
+Depends on: WP5 accepted (2026-10-30).
 
-Deliver: a PowerShell script and instructions to register a Windows Task Scheduler job running `ingest catchup && derive` daily at 06:00; `fundtracker digest` printing a markdown summary of new launches since the last digest (for pasting into notes or email); `README.md` covering install, first backfill, daily use, and how to tune score weights.
+Deliver: `serve` refreshes on launch when the database is stale (`--no-refresh` to skip); `fundtracker refresh` as the one code path for the web button, the terminal and the scheduler; `fundtracker schedule install|show|remove` wrapping Windows Task Scheduler (weekdays 06:30) with a cron hint elsewhere; an FTS5 search index rebuilt by derive; `fundtracker digest` writing a weekly Markdown file; a brief README written with the docs-writing skill; the push to the user's private GitHub repository with nothing sensitive tracked.
 
-Done when: the scheduled task runs successfully overnight once; digest output reviewed by the user.
+Done when: a stranger can clone, follow the README and be running the site in ten minutes; the database stays current with no manual step; rare-name search answers in under 0.1 s; the digest file is written; the remote is pushed.
+
+Brief: "Implement WP6 from docs/SESSIONS.md Session 9."
 
 ### WP7 (optional, later): enrichment
 
