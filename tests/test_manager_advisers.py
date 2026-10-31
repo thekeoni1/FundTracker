@@ -49,6 +49,14 @@ EXTRA = [
     *(adviser(f"9001{i:02d}", f"SERVICED {i} ADVISERS", phone="212-555-0100") for i in range(21)),
     # One alone at its address.
     adviser("900200", "LONE OFFICE MANAGEMENT", "77 SINGLE STREET", "60601"),
+    # Alone at an address, sharing a name token with the manager there (Orso Partners).
+    adviser("900201", "ORSINO PARTNERS, LP", "88 HARBOR ROAD", "02110"),
+    # A filing service's phone, no hedge funds.
+    adviser("900202", "DOCS BOX FILINGS", phone="303-555-0199"),
+    # A phone of an adviser with hedge funds and an unrelated name.
+    adviser("900203", "HARBOR HEDGE ADVISERS", phone="303-555-0177", hedge=True),
+    # Alone at an address, sharing only a suffix and a generic token with the manager there.
+    adviser("900204", "BRIGHT FUND LLC", "99 MEADOW LANE", "73301"),
 ]
 
 
@@ -63,6 +71,11 @@ def conn():
         fund(5, "Serviced Fund LP", phone="+1 212 555 0100"),
         fund(6, "Single Fund LP", street1="77 Single Street", zip_code="60601"),
         fund(7, "Unknown Fund LP"),
+        fund(8, "Orsino Partners Fund LP", street1="88 Harbor Road", zip_code="02110",
+             entity="Orsino Partners Fund GP, LLC"),
+        fund(9, "Tundra Fund LP", phone="303 555 0199"),
+        fund(10, "Glacier Fund LP", phone="303.555.0177"),
+        fund(11, "Polar Fund LLC", street1="99 Meadow Lane", zip_code="73301", entity="Polar Fund LLC"),
     ]
     for f in funds:
         repo.upsert_filing(c, f)
@@ -106,8 +119,24 @@ def test_a_phone_shared_by_21_advisers_is_ignored(conn):
     assert link(conn, 5) is None
 
 
-def test_one_adviser_at_an_address_links_medium(conn):
-    assert link(conn, 6) == ("900200", "medium", ["address"], ["900200"])
+def test_one_adviser_at_an_address_with_a_shared_name_token_links_medium(conn):
+    assert link(conn, 8) == ("900201", "medium", ["address", "name_token"], ["900201"])
+
+
+def test_one_adviser_at_an_address_with_no_shared_name_token_gives_candidates_only(conn):
+    assert link(conn, 6) == (None, "none", [], ["900200"])
+
+
+def test_a_phone_of_an_adviser_without_hedge_funds_and_no_shared_name_token_gives_candidates_only(conn):
+    assert link(conn, 9) == (None, "none", [], ["900202"])
+
+
+def test_a_phone_of_an_adviser_with_hedge_funds_links_high_without_a_shared_name_token(conn):
+    assert link(conn, 10) == ("900203", "high", ["phone"], ["900203"])
+
+
+def test_suffix_and_generic_tokens_are_not_shared_name_tokens(conn):
+    assert link(conn, 11) == (None, "none", [], ["900204"])
 
 
 def test_a_manager_matching_nothing_gets_no_row(conn):
@@ -128,7 +157,7 @@ def test_derive_twice_gives_identical_tables(conn):
     before = dump()
     counts = derive.run(conn)
     assert dump() == before
-    assert counts["manager_adviser"] == {"high": 2, "medium": 2, "none": 1}
+    assert counts["manager_adviser"] == {"high": 3, "medium": 2, "none": 4}
 
 
 @pytest.mark.parametrize("name, stem", [
@@ -140,3 +169,14 @@ def test_derive_twice_gives_identical_tables(conn):
 ])
 def test_adviser_stem(name, stem):
     assert derive.adviser_stem(name) == stem
+
+
+@pytest.mark.parametrize("name, tokens", [
+    ("Orsino Partners Fund GP, LLC", {"ORSINO", "PARTNERS"}),
+    ("BRIGHT CAPITAL FUND LLC", {"BRIGHT", "CAPITAL"}),
+    ("RRJ MANAGEMENT LTD", {"MANAGEMENT"}),
+    ("THE FUND, LLC", set()),
+    (None, set()),
+])
+def test_adviser_tokens(name, tokens):
+    assert derive.adviser_tokens(name) == tokens

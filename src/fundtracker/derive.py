@@ -591,6 +591,14 @@ def adviser_stem(name):
     return stem if _usable_stem(stem) else None
 
 
+def adviser_tokens(name):
+    """The words of adviser_stem(name) that can show a manager and an adviser are the same
+    firm: not in ADV_SUFFIX_TOKENS or GENERIC_STEM_TOKENS, at least MIN_KEY_LENGTH long."""
+    stem = adviser_stem(name) or ""
+    return frozenset(t for t in stem.split() if len(t) >= MIN_KEY_LENGTH
+                     and t not in ADV_SUFFIX_TOKENS and t not in GENERIC_STEM_TOKENS)
+
+
 def _adviser_keys(conn):
     """(kind, key, crd) for every adviser: name stems of both names, the phone's last
     ADV_PHONE_DIGITS digits, and the address as address_key gives it, also with a
@@ -630,10 +638,40 @@ def build_manager_advisers(conn):
               address of which exactly one has hedge funds
       none    anything else; the candidates are kept in evidence
 
+    A link by address alone, or by phone alone to an adviser with no hedge
+    funds, stands only when the manager and the adviser share a name token
+    (adviser_tokens); otherwise it is none.
+
     Managers with no candidate get no row. Returns {tier: managers}.
     """
     conn.execute("DELETE FROM manager_adviser")
-    for table in ("adv_key", "manager_key"):
+    tiers = dict.fromkeys((HIGH, MEDIUM, NONE), 0)
+
+    def rows():
+        for row in adviser_links(conn):
+            tiers[row[2]] += 1
+            yield row
+
+    conn.executemany("INSERT INTO manager_adviser VALUES (?, ?, ?, ?, ?)", rows())
+    conn.execute(
+        f"""
+        UPDATE manager SET (adviser_crd, adviser_confidence, adviser_kind, website, employees, raum,
+                            adv_hedge_funds, adv_private_assets, adv_filing_date) = (
+            SELECT a.crd, ma.confidence, a.kind, a.website, a.employees, a.raum, a.n_hedge_funds,
+                   a.private_fund_assets, a.latest_filing_date
+            FROM manager_adviser ma JOIN adviser a USING (crd)
+            WHERE ma.manager_id = manager.manager_id)
+        WHERE manager_id IN (SELECT manager_id FROM manager_adviser
+                             WHERE confidence IN ({', '.join(f"'{t}'" for t in LINKED)}))
+        """)
+    log.info("manager advisers: %(high)d high, %(medium)d medium, %(none)d candidates only", tiers)
+    return tiers
+
+
+def adviser_links(conn):
+    """Yield the manager_adviser rows (manager_id, crd, confidence, match_kinds, evidence)
+    in manager order, writing only temporary tables, so a read-only connection can run it."""
+    for table in ("adv_key", "manager_key", "adv_hit"):
         conn.execute(f"DROP TABLE IF EXISTS temp.{table}")
     conn.execute("CREATE TEMP TABLE adv_key (kind TEXT, key TEXT, crd TEXT)")
     conn.executemany("INSERT INTO temp.adv_key VALUES (?, ?, ?)", _adviser_keys(conn))
@@ -660,40 +698,48 @@ def build_manager_advisers(conn):
         WHERE lk.kind IN ('phone', 'address') AND lk.over_cap = 0
         """)
     hedge = {r[0] for r in conn.execute("SELECT crd FROM adviser WHERE any_hedge_funds = 1")}
-    hits = conn.execute(
+    conn.execute(
         """
+        CREATE TEMP TABLE adv_hit AS
         SELECT DISTINCT mk.manager_id, mk.kind, mk.key, ak.crd
         FROM temp.manager_key mk CROSS JOIN temp.adv_key ak ON ak.kind = mk.kind AND ak.key = mk.key
-        ORDER BY mk.manager_id, mk.kind, mk.key, ak.crd
         """)
-    tiers = dict.fromkeys((HIGH, MEDIUM, NONE), 0)
-
-    def rows():
-        for manager_id, group in _groups(hits):
-            row = _adviser_link(manager_id, [(r["kind"], r["key"], r["crd"]) for r in group], hedge)
-            tiers[row[2]] += 1
-            yield row
-
-    conn.executemany("INSERT INTO manager_adviser VALUES (?, ?, ?, ?, ?)", rows())
-    conn.execute(
-        f"""
-        UPDATE manager SET (adviser_crd, adviser_confidence, adviser_kind, website, employees, raum,
-                            adv_hedge_funds, adv_private_assets, adv_filing_date) = (
-            SELECT a.crd, ma.confidence, a.kind, a.website, a.employees, a.raum, a.n_hedge_funds,
-                   a.private_fund_assets, a.latest_filing_date
-            FROM manager_adviser ma JOIN adviser a USING (crd)
-            WHERE ma.manager_id = manager.manager_id)
-        WHERE manager_id IN (SELECT manager_id FROM manager_adviser
-                             WHERE confidence IN ({', '.join(f"'{t}'" for t in LINKED)}))
-        """)
-    for table in ("adv_key", "manager_key"):
+    adv_tokens = _adviser_token_map(conn)
+    manager_tokens = _manager_token_map(conn)
+    hits = conn.execute("SELECT * FROM temp.adv_hit ORDER BY manager_id, kind, key, crd")
+    for manager_id, group in _groups(hits):
+        yield _adviser_link(manager_id, [(r["kind"], r["key"], r["crd"]) for r in group], hedge,
+                            manager_tokens.get(manager_id, frozenset()), adv_tokens)
+    for table in ("adv_key", "manager_key", "adv_hit"):
         conn.execute(f"DROP TABLE temp.{table}")
-    log.info("manager advisers: %(high)d high, %(medium)d medium, %(none)d candidates only", tiers)
-    return tiers
 
 
-def _adviser_link(manager_id, found, hedge):
-    """The manager_adviser row for one manager's (kind, key, crd) hits."""
+def _adviser_token_map(conn):
+    """{crd: adviser_tokens of the adviser's name and legal name}."""
+    return {r["crd"]: adviser_tokens(r["name"]) | adviser_tokens(r["legal_name"])
+            for r in conn.execute("SELECT crd, name, legal_name FROM adviser")}
+
+
+def _manager_token_map(conn):
+    """{manager_id: adviser_tokens of its display name and its funds' entity stems under
+    the Form D cap}, for the managers in temp.adv_hit."""
+    tokens = defaultdict(frozenset)
+    for r in conn.execute(
+            """
+            SELECT manager_id, display_name FROM manager
+            WHERE manager_id IN (SELECT manager_id FROM temp.adv_hit)
+            UNION
+            SELECT fm.manager_id, lk.key FROM link_key lk JOIN fund_manager fm USING (cik)
+            WHERE lk.kind = 'entity_stem' AND lk.over_cap = 0
+              AND fm.manager_id IN (SELECT manager_id FROM temp.adv_hit)
+            """):
+        tokens[r[0]] |= adviser_tokens(r[1])
+    return tokens
+
+
+def _adviser_link(manager_id, found, hedge, tokens, adv_tokens):
+    """The manager_adviser row for one manager's (kind, key, crd) hits, given the
+    manager's name tokens and {crd: name tokens} for the advisers."""
     by_kind = defaultdict(set)
     for kind, _key, crd in found:
         by_kind[kind].add(crd)
@@ -708,14 +754,24 @@ def _adviser_link(manager_id, found, hedge):
         crd, confidence = next(iter(narrowed)), HIGH
     elif len(phones) == 1:
         crd, confidence = next(iter(phones)), HIGH
+        if crd not in hedge:
+            crd, confidence, extra = _name_token_check(crd, confidence, tokens, adv_tokens)
     elif len(addresses) == 1:
-        crd, confidence = next(iter(addresses)), MEDIUM
+        crd, confidence, extra = _name_token_check(next(iter(addresses)), MEDIUM, tokens, adv_tokens)
     elif TIEBREAK_MIN <= len(shared) <= TIEBREAK_MAX and len(hedgers) == 1:
         crd, confidence, extra = hedgers[0], MEDIUM, ["hedge_tiebreak"]
     kinds = [k for k in ("name", "phone", "address") if crd in by_kind[k]] + extra
     evidence = {"keys": sorted({f"{kind}:{key}" for kind, key, c in found if crd is None or c == crd}),
                 "candidates": sorted({c for _k, _key, c in found}, key=lambda c: (len(c), c))}
     return manager_id, crd, confidence, json.dumps(kinds), json.dumps(evidence)
+
+
+def _name_token_check(crd, confidence, tokens, adv_tokens):
+    """(crd, confidence, extra kinds) when the manager and adviser share a name token,
+    else no link."""
+    if tokens & adv_tokens.get(crd, frozenset()):
+        return crd, confidence, ["name_token"]
+    return None, NONE, []
 
 
 # Launches: pooled funds first filed within LAUNCH_WINDOW_DAYS of each other

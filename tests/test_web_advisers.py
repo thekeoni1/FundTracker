@@ -40,7 +40,8 @@ def enriched(world):
                                      latest_filing_date="2026-04-01"))
         repo.replace_advisers(conn, "ria", "2026-10", registered)
         repo.replace_advisers(conn, "era", "2026-10", [AdviserRow(
-            crd="990002", kind="era", name="TEAL ADVISERS LP", phone="999-555-0003", n_hedge_funds=1)])
+            crd="990002", kind="era", name="TEAL ADVISERS LP", phone="999-555-0003",
+            any_hedge_funds=True, n_hedge_funds=1)])
     derive.run(conn)
     conn.close()
     return world
