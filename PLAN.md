@@ -345,7 +345,7 @@ Brief: "Implement WP6 from docs/SESSIONS.md Session 9."
 
 ### WP7: Form ADV enrichment
 
-Depends on: WP6 (accepted 2026-10-30). Source verified 2026-10-30, reference section 8.
+Depends on: WP6 (accepted 2026-10-30). Source verified 2026-10-30, reference section 8. Built in Session 10 and accepted 2026-10-30 (commit 5280373): 255 of 780 emerging hedge managers linked; the address-only link rule and the scoring of headcount and RAUM are open (PROGRESS.md Session 10 entry, questions 27 and 28).
 
 Deliver: `ingest adv` loading the SEC's monthly registered and exempt adviser CSVs into an `adviser` table (latest snapshot); matching in `derive` to `manager_adviser` with confidence tiers (name or unique phone high, unique address or hedge-fund tie-break medium, otherwise candidates only; keys shared by more than 20 advisers ignored); website, employees, RAUM, adviser kind and the SEC's hedge fund count on the Emerging page, workbook and manager page, with adviser and employee-band filters and an IAPD link. No traction weight change until the user has seen the data.
 
