@@ -14,7 +14,7 @@ from datetime import date, datetime
 
 from flask import Flask, abort, g, render_template, request, send_file, url_for
 
-from fundtracker import classify, config, export, newness, traction
+from fundtracker import classify, config, export, newness, outreach, traction
 from fundtracker.db import repo
 from fundtracker.web import filters, jobs, links
 
@@ -107,6 +107,24 @@ def create_app(connect=None, today=None, refresher=None):
         out = io.BytesIO()
         export.write_emerging_workbook(out, rows, funds, meta)
         return _xlsx(out, f"emerging-{f['type']}-{oldest}-to-{newest}-{today():%Y%m%d}.xlsx")
+
+    def outreach_csv(manager_ids):
+        managers = [repo.get_manager(db(), i) or abort(404) for i in manager_ids]
+        out = io.StringIO()
+        outreach.write_sheet_csv(out, outreach.sheet_rows(managers))
+        return send_file(io.BytesIO(out.getvalue().encode("utf-8")), mimetype="text/csv",
+                         as_attachment=True, download_name=f"outreach-{today():%Y%m%d}.csv")
+
+    @app.post("/emerging/outreach.csv")
+    def emerging_outreach():
+        ids = list(dict.fromkeys(request.form.getlist("manager_id")))
+        if not ids:
+            abort(400, "Tick at least one manager.")
+        return outreach_csv(ids)
+
+    @app.get("/manager/<manager_id>/outreach.csv")
+    def manager_outreach(manager_id):
+        return outreach_csv([manager_id])
 
     @app.get("/launch/<launch_id>")
     def launch(launch_id):

@@ -91,3 +91,4 @@ ul.links { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; padding: 0; list-s
   dl.facts dt { margin-top: 0.4rem; }
 }
 .failed { color: var(--low); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

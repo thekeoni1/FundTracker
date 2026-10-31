@@ -15,6 +15,7 @@
   {% if m.edgar_cik %}<li><a href="{{ links.edgar_company(m.edgar_cik) }}" target="_blank" rel="noopener">EDGAR filings</a></li>{% endif %}
   <li><a href="{{ links.web_search(m.display_name) }}" target="_blank" rel="noopener">Web search</a></li>
   <li><a href="{{ links.iapd_search(m.display_name) }}" target="_blank" rel="noopener">SEC adviser search (IAPD)</a></li>
+  <li><a href="{{ url_for('manager_outreach', manager_id=m.manager_id) }}" download>Outreach CSV</a></li>
 </ul>
 
 <h2>Form ADV adviser</h2>
