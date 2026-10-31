@@ -37,7 +37,15 @@ To refresh without opening the site, `fundtracker schedule install` adds a Windo
 
 Launches lists new funds by filing date with a newness score from 0 to 100. Most of the score comes from a manager with no earlier fund on EDGAR, a single filing, and nothing sold yet; a recent incorporation, Rule 506(c) and a minimum investment between 100,000 and 1,000,000 add a little, and an established manager or a private equity style name takes points off. Master, feeder and offshore vehicles filed together count as one launch. Each row shows the reasons behind its score.
 
-Emerging lists managers whose first Form D is 6 to 18 months old, ranked by traction: money raised, the number of investors, amendments, a second vehicle and recent filings. Managers whose people filed for a large firm before are labelled with it. Platforms and firms with 20 or more funds are left out.
+Emerging lists managers whose first Form D is 6 to 18 months old, ranked by traction: money raised, the number of investors, amendments, a second vehicle and recent filings. Managers whose people filed for a large firm before are labelled with it. Platforms and firms with 20 or more funds are left out. A manager's offering is open while one of its funds has filed within 13 calendar months and still reports an indefinite amount or money remaining; otherwise it is lapsed, and the Offering filter splits on that.
+
+The links above each page's filters are presets, saved combinations of the filters below them.
+
+## The outreach sheet
+
+Outreach is tracked in a Google Sheet that FundTracker feeds and reads back. Tick managers on the Emerging page and press "Outreach CSV for ticked", or use the Outreach CSV link on a manager's page. The download has one row per named person in the sheet's twelve columns, with the manager's EDGAR CIK in `FT KEY` and no header row, so File, Import, "Append to current sheet" adds it as it is. Format the `FT KEY` column as plain text, or Sheets drops a CIK's leading zeros (the read-back pads them back either way).
+
+To see in FundTracker who is in the sheet, download the `MASTER` tab as CSV into the data folder and set `FUNDTRACKER_OUTREACH_CSV` in `.env` to its path. `fundtracker outreach pull` reads it, and so does every refresh after `derive`. Only `FT KEY`, `NAME`, `STATUS` and `LAST ACTION` are stored. The Emerging page then has an Outreach column and filter. The setting also takes the https URL of the tab published to the web as CSV, but anyone with that link can read the sheet, contact details included.
 
 ## Data and settings
 
