@@ -2,6 +2,7 @@
 {% block title %}Launches{% endblock %}
 {% block main %}
 <h1>Launches</h1>
+{% include "_presets.html" %}
 <form class="filters" action="{{ url_for('launches') }}" method="get"
       hx-get="{{ url_for('launches_table') }}" hx-target="#results" hx-trigger="change, submit">
   <label>Filed from <input type="date" name="since" value="{{ f.since }}"></label>

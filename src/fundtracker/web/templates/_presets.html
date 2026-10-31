@@ -1,0 +1,3 @@
+<nav id="presets" class="presets" aria-label="Presets"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% for p in presets %}<a href="{{ url_for(page_endpoint) }}?{{ p.query }}"{% if p.active %} class="active" aria-current="true"{% endif %}>{{ p.label }}</a>{% endfor %}
+</nav>

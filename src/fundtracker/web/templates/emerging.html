@@ -2,6 +2,7 @@
 {% block title %}Emerging{% endblock %}
 {% block main %}
 <h1>Emerging managers</h1>
+{% include "_presets.html" %}
 <form class="filters" action="{{ url_for('emerging') }}" method="get"
       hx-get="{{ url_for('emerging_table') }}" hx-target="#results" hx-trigger="change, submit">
   <label>First seen from <input type="date" name="first_seen_from" value="{{ f.first_seen_from }}"></label>

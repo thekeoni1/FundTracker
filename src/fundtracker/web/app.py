@@ -16,7 +16,7 @@ from flask import Flask, abort, g, render_template, request, send_file, url_for
 
 from fundtracker import classify, config, export, newness, outreach, traction
 from fundtracker.db import repo
-from fundtracker.web import filters, jobs, links
+from fundtracker.web import filters, jobs, links, presets
 
 # Rows a page renders; the summary line says when there are more. The default
 # Launches and Emerging views stay under it, so their exports match the screen.
@@ -59,7 +59,8 @@ def create_app(connect=None, today=None, refresher=None):
         f = filters.launch_filters(request.args, today())
         rows = launch_rows(db(), f)
         return {"f": f, "rows": rows[:DISPLAY_LIMIT], "total": len(rows),
-                "summary": filters.describe_launches(f), "query": _query()}
+                "summary": filters.describe_launches(f), "query": _query(), "page_endpoint": "launches",
+                "presets": presets.marked(presets.LAUNCH_PRESETS, f, filters.launch_filters, today())}
 
     @app.get("/launches")
     def launches():
@@ -73,7 +74,8 @@ def create_app(connect=None, today=None, refresher=None):
         f = filters.emerging_filters(request.args, today())
         rows = emerging_rows(db(), f, today())
         return {"f": f, "rows": rows[:DISPLAY_LIMIT], "total": len(rows),
-                "summary": filters.describe_emerging(f), "query": _query()}
+                "summary": filters.describe_emerging(f), "query": _query(), "page_endpoint": "emerging",
+                "presets": presets.marked(presets.EMERGING_PRESETS, f, filters.emerging_filters, today())}
 
     @app.get("/emerging")
     def emerging():
@@ -211,8 +213,11 @@ def _query():
 
 def _partial(template, page_endpoint, context):
     """A table partial. Asked for by HTMX, it moves the address bar to the page's own
-    URL with the same filters, so the view stays bookmarkable."""
+    URL with the same filters, so the view stays bookmarkable, and redraws the presets
+    row out of band so the active one follows the filters."""
     response = render_template(template, **context)
+    if request.headers.get("HX-Request"):
+        response += render_template("_presets.html", oob=True, **context)
     headers = {}
     if request.headers.get("HX-Request"):
         query = context["query"]
