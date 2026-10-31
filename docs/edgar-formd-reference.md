@@ -217,7 +217,9 @@ Exempt reporting advisers file only Items 1, 2, 3, 6, 7, 10 and 11, so they carr
 
 The private fund list with fund names (Schedule D 7.B.(1)) is not in these files. It was in the pre-2025 archive CSVs at `/foia/docs/form-adv-archive-data.htm`; since 2025 it is only on IAPD per firm.
 
-Matching to FundTracker managers, measured on the 780 emerging hedge managers (first seen 2025-04-30 to 2026-04-30): exact normalised name 61, entity related-person name 46, main office phone 231, main office address 236, any key 360 (46 percent); 184 hit more than one adviser through shared buildings and phones, so confidence tiers are needed. Of the 360, 141 RIA (employee counts available) and 219 ERA; 301 have a website. Example: MALT PARTNERS MANAGEMENT LLC, CRD 337855, RIA, 2 employees, RAUM 36,321,031, 2 hedge funds, no website.
+Matching to FundTracker managers, from the first real run (2026-10 files, derive of 2026-10-30, 780 emerging hedge managers first seen 2025-04-30 to 2026-04-30). The planning estimate had 360 matching any key, 184 of them several advisers; with the 20-adviser key cap and the confidence tiers (decisions log), 212 link high, 43 medium, 37 have candidates only and 488 have none. Of the 255 linked, 145 are RIA and 110 ERA, 209 have a website and 145 an employee count and RAUM. Employees of the linked RIAs: median 10, 108 of 145 at 20 or fewer. Name links are reliable. Phone links are mostly right but sometimes reach a large firm or a filing service. Address-only links to an adviser without hedge funds are mostly wrong: Grand Cayman registered offices and shared buildings (PROGRESS.md, Session 10). Example: MALT PARTNERS MANAGEMENT LLC, CRD 337855, RIA, 2 employees, RAUM 36,321,031, 2 hedge funds, no website, linked high by name, phone and address.
+
+`ingest adv` loads both October 2026 files in about 3 s. `Any Hedge Funds` is `Y` or `N`, and `Total number of Hedge funds` is blank when it is `N`.
 
 ### 8.2 IAPD (adviserinfo.sec.gov)
 
