@@ -186,7 +186,7 @@ def emerging_rows(conn, f, today):
         ["Hedge Fund"] if f["type"] == "hedge" else None, exclude_over_cap=f["platforms"] == "hide",
         max_funds=traction.EMERGING_MAX_FUNDS, raised=f["raised"], states=f["state"],
         prior_firm=f["prior_firm"], adviser=f["adviser"], employees=f["employees"],
-        outreach=f["outreach"])
+        offering=f["offering"], outreach=f["outreach"])
     rows = traction.score_managers(managers, today, f["type"], f["min_score"])
     # Python's sort is stable, so each other order keeps the score order within a tie.
     if f["sort"] == "raised":
@@ -264,6 +264,7 @@ def _register_filters(app):
         address=_address,
         adviser_label=_adviser_label,
         outreach=_outreach,
+        remaining=_remaining,
     )
     app.jinja_env.globals.update(links=links, reason_labels=newness.REASON_LABELS)
 
@@ -272,6 +273,15 @@ def _adviser_label(m):
     """RIA or ERA with the link's confidence: "RIA, high". Empty when unlinked."""
     kind = m.get("adviser_kind")
     return f"{kind.upper()}, {m['adviser_confidence']}" if kind else ""
+
+
+def _remaining(f, prefix=""):
+    """A fund's amount remaining on a definite offering, from its first filing's terms
+    (offering less sold); None for an indefinite or unknown offering."""
+    offering = f[f"{prefix}total_offering_amount_num"]
+    if f[f"{prefix}total_offering_amount_is_indefinite"] or offering is None:
+        return None
+    return max(0, offering - (f[f"{prefix}total_amount_sold_num"] or 0))
 
 
 def _outreach(m):

@@ -252,6 +252,8 @@ CREATE TABLE IF NOT EXISTS manager (
     people              TEXT,            -- JSON list of individual related persons, see derive
     edgar_cik           TEXT,            -- the earliest fund's CIK
     prior_firms         TEXT,            -- JSON list of large managers its people filed for earlier
+    offering_status     TEXT,            -- open or lapsed, see derive.build_manager_stats
+    total_remaining     INTEGER,         -- sum of total_remaining_num over definite offerings
     -- Form ADV, from a high or medium manager_adviser link (derive.build_manager_advisers)
     adviser_crd         TEXT,
     adviser_confidence  TEXT,            -- high or medium

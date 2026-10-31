@@ -75,6 +75,8 @@ ADDED_COLUMNS = (
     ("manager", "adv_hedge_funds", "INTEGER"),
     ("manager", "adv_private_assets", "INTEGER"),
     ("manager", "adv_filing_date", "TEXT"),
+    ("manager", "offering_status", "TEXT"),
+    ("manager", "total_remaining", "INTEGER"),
 )
 
 
@@ -421,7 +423,7 @@ def _outreach_join(conn):
 
 def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=True, max_funds=20,
                         raised=None, states=(), prior_firm="any", adviser="any", employees=None,
-                        outreach="any"):
+                        offering="any", outreach="any"):
     """Managers first seen from oldest to newest (dates, both included).
 
     Only managers with a Pooled Investment Fund are listed; fund_types (for
@@ -432,7 +434,8 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     asked. raised is a key of RAISED_BANDS on the manager's total sold;
     states are the state codes of its earliest fund (edgar_cik); prior_firm
     is "with", "without" or "any"; adviser is a key of ADVISER_FILTERS or "any";
-    employees a key of EMPLOYEE_BANDS; outreach a key of OUTREACH_FILTERS or "any". Each
+    employees a key of EMPLOYEE_BANDS; offering "open", "lapsed" or "any"; outreach a
+    key of OUTREACH_FILTERS or "any". Each
     row is a dict of manager columns, outreach_status and outreach_last_action, with
     "funds": its fund rows, oldest first, each with latest_total_amount_sold
     and latest_n_investors from its latest filing.
@@ -455,6 +458,9 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     if employees in EMPLOYEE_BANDS:
         where.append("m.employees IS NOT NULL")
         _band("m.employees", employees, EMPLOYEE_BANDS, where, params)
+    if offering in ("open", "lapsed"):
+        where.append("m.offering_status = ?")
+        params.append(offering)
     if outreach in OUTREACH_FILTERS:
         where.append(OUTREACH_FILTERS[outreach])
     pooled = "f.industry_group = 'Pooled Investment Fund'"

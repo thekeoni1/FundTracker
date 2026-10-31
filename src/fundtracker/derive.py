@@ -16,6 +16,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from fundtracker import classify, normalize
 from fundtracker.db import repo
+from fundtracker.traction import months_before
 from fundtracker.normalize import (
     entity_display_name,
     entity_stem,
@@ -409,13 +410,33 @@ US_STATE_CODES = frozenset(
     "NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR VI GU AS MP".split())
 
 
-def build_manager_stats(conn):
+# Form D must be amended yearly while an offering continues, so a fund whose latest
+# filing is older than this has stopped raising or stopped filing. Whole calendar
+# months, as traction.age_months counts them for the Age column, so every day of the
+# thirteenth month back still counts: on 2026-10-31 a latest filing of 2025-09-01 is
+# open and 2025-08-31 lapsed.
+OPEN_MAX_AGE_MONTHS = 13
+
+
+def open_since(today):
+    """The earliest latest-filing date that is at most OPEN_MAX_AGE_MONTHS whole months
+    before today: the day after the same day OPEN_MAX_AGE_MONTHS + 1 months earlier."""
+    return months_before(today, OPEN_MAX_AGE_MONTHS + 1) + timedelta(days=1)
+
+
+def build_manager_stats(conn, today=None):
     """Fill the traction columns of manager from its funds' latest filings.
 
     Run after build_managers and build_link_keys. SQLite does the sums; Python
     only splits fund types, names the country and walks the related persons
     one manager at a time, so memory stays flat.
+
+    offering_status is open when any member fund's latest filing is on or after
+    open_since(today) and reports an indefinite offering or a remaining amount
+    above 0, else lapsed. total_remaining sums the remaining amounts of member
+    funds whose latest offering is definite; it is null when every one is indefinite.
     """
+    since = open_since(today or date.today()).isoformat()
     over_cap = {r[0] for r in conn.execute(
         """
         SELECT DISTINCT fm.manager_id FROM link_key lk JOIN fund_manager fm USING (cik)
@@ -431,7 +452,12 @@ def build_manager_stats(conn):
                            sum(coalesce(lo.total_amount_sold_num, 0)) AS sold,
                            sum(coalesce(lo.n_investors, 0)) AS investors,
                            max(f.n_filings > 1 AND lf.submission_type = 'D/A') AS amended,
-                           group_concat(DISTINCT f.fund_type) AS types
+                           group_concat(DISTINCT f.fund_type) AS types,
+                           max(f.latest_filing_date >= :since
+                               AND (lo.total_offering_amount_is_indefinite = 1
+                                    OR lo.total_remaining_num > 0)) AS is_open,
+                           sum(CASE WHEN coalesce(lo.total_offering_amount_is_indefinite, 0) = 0
+                                    THEN coalesce(lo.total_remaining_num, 0) END) AS remaining
                     FROM fund_manager fm JOIN fund f USING (cik)
                     LEFT JOIN offering lo ON lo.accession = f.latest_accession
                     LEFT JOIN filing lf ON lf.accession = f.latest_accession
@@ -440,19 +466,20 @@ def build_manager_stats(conn):
                 SELECT s.*, i.city, i.state_or_country, i.state_or_country_desc
                 FROM stats s JOIN fund e ON e.cik = substr(s.manager_id, 2)
                 LEFT JOIN issuer i ON i.accession = e.latest_accession AND i.is_primary = 1
-                """):
+                """, {"since": since}):
             manager_id = r["manager_id"]
             types = sorted(set((r["types"] or "").split(",")) - {""})
             yield (r["n_filings"], r["latest"], r["sold"], r["investors"], int(bool(r["amended"])),
                    int(manager_id in over_cap), json.dumps(types),
                    *_place(r["city"], r["state_or_country"], r["state_or_country_desc"]),
-                   manager_id[1:], manager_id)
+                   manager_id[1:], "open" if r["is_open"] else "lapsed", r["remaining"], manager_id)
 
     conn.executemany(
         """
         UPDATE manager SET n_filings = ?, latest_filing_date = ?, total_sold = ?,
                total_investors = ?, has_amendment = ?, is_over_cap = ?, fund_types = ?,
-               city = ?, state = ?, country = ?, edgar_cik = ?
+               city = ?, state = ?, country = ?, edgar_cik = ?, offering_status = ?,
+               total_remaining = ?
         WHERE manager_id = ?
         """, rows())
     conn.executemany("UPDATE manager SET people = ? WHERE manager_id = ?", _people(conn))
@@ -1047,7 +1074,7 @@ def run(conn, today=None):
         keys = step("build_link_keys", build_link_keys, conn, rows=lambda k: k["rows"])
         counts["link_key"], counts["over_cap"] = keys["rows"], keys["over_cap"]
         counts["manager"] = step("build_managers", build_managers, conn)
-        step("build_manager_stats", build_manager_stats, conn, rows=lambda _r: counts["manager"])
+        step("build_manager_stats", build_manager_stats, conn, today, rows=lambda _r: counts["manager"])
         counts["manager_adviser"] = step("build_manager_advisers", build_manager_advisers, conn,
                                          rows=lambda tiers: sum(tiers.values()))
         counts["fund_manager"] = counts["fund"]

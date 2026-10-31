@@ -6,7 +6,7 @@
 <table>
   <thead><tr>
     <th>Date</th><th>Score</th><th>Launch</th><th>Manager</th><th>Type</th><th>506</th>
-    <th class="num">Min</th><th class="num">Raised</th><th>State</th><th>Platform</th><th>EDGAR</th>
+    <th class="num">Min</th><th class="num">Raised</th><th class="num">Remaining</th><th>State</th><th>Platform</th><th>EDGAR</th>
   </tr></thead>
   <tbody>
   {% for r in rows %}
@@ -19,12 +19,13 @@
       <td class="nowrap">{{ r.fund_exemptions | rule_506 }}</td>
       <td class="num">{{ r.fund_min_investment_num | amount }}</td>
       <td class="num">{{ r.fund_total_amount_sold_num | amount }}</td>
+      <td class="num">{{ r | remaining("fund_") | amount }}</td>
       <td>{{ r.fund_state or "" }}</td>
       <td class="small">{{ r | platform }}</td>
       <td><a href="{{ links.edgar_filing(r.anchor_cik, r.launch_id) }}" target="_blank" rel="noopener">filing</a></td>
     </tr>
   {% else %}
-    <tr><td colspan="11" class="empty">No launches match these filters.</td></tr>
+    <tr><td colspan="12" class="empty">No launches match these filters.</td></tr>
   {% endfor %}
   </tbody>
 </table>

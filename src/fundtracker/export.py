@@ -142,6 +142,8 @@ MANAGER_COLUMNS = (
     ("Age months", 8, None, lambda m: m["age_months"]),
     ("Funds", 7, None, lambda m: m["n_funds"]),
     ("Raised", 15, AMOUNT_FORMAT, lambda m: m["total_sold"]),
+    ("Offering", 9, None, lambda m: m.get("offering_status")),
+    ("Remaining", 15, AMOUNT_FORMAT, lambda m: m.get("total_remaining")),
     ("Investors", 10, AMOUNT_FORMAT, lambda m: m["total_investors"]),
     ("Amended", 9, None, lambda m: "yes" if m["has_amendment"] else "no"),
     ("Latest filing", 12, DATE_FORMAT, lambda m: _date(m["latest_filing_date"])),
@@ -220,6 +222,7 @@ def write_emerging_workbook(path, managers, funds, meta):
             f"{traction._band_text(low, high)}: {points:+d}" for low, high, points in traction.RAISED_BANDS)),
         ("Investors for the higher tier", traction.MANY_INVESTORS),
         ("Recent activity, months", traction.RECENT_MONTHS),
+        ("Offering open if a fund filed within, whole months", derive.OPEN_MAX_AGE_MONTHS),
         ("Funds that count as large", traction.LARGE_FUNDS),
         ("Adviser employees above which the team counts as large", traction.LARGE_TEAM_MAX),
     ], traction.TRACTION_WEIGHTS, traction.TRACTION_LABELS)

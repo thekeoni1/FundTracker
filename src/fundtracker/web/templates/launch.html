@@ -15,7 +15,7 @@
 <table>
   <thead><tr>
     <th>Fund</th><th>CIK</th><th>Type</th><th>Exemptions</th><th class="num">Min</th><th class="num">Offering</th>
-    <th class="num">Sold</th><th class="num">Investors</th><th>Sale date</th><th>Formed</th><th>Address</th><th>EDGAR</th>
+    <th class="num">Sold</th><th class="num">Remaining</th><th class="num">Investors</th><th>Sale date</th><th>Formed</th><th>Address</th><th>EDGAR</th>
   </tr></thead>
   <tbody>
   {% for f in launch.funds %}
@@ -27,6 +27,7 @@
       <td class="num">{{ f.min_investment_num | amount }}</td>
       <td class="num">{% if f.total_offering_amount_is_indefinite %}Indefinite{% else %}{{ f.total_offering_amount_num | amount }}{% endif %}</td>
       <td class="num">{{ f.total_amount_sold_num | amount }}</td>
+      <td class="num">{{ f | remaining | amount }}</td>
       <td class="num">{{ f.n_investors | amount }}</td>
       <td class="nowrap">{{ f.sale_date or ("yet to occur" if f.sale_yet_to_occur else "") }}</td>
       <td>{{ f.year_of_inc_value or f.year_of_inc_choice or "" }}</td>

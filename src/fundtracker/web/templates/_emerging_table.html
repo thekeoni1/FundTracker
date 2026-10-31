@@ -10,7 +10,7 @@
 <table>
   <thead><tr>
     <th><span class="sr-only">Pick</span></th><th>Score</th><th>Manager</th><th>First seen</th><th class="num">Age</th><th class="num">Funds</th>
-    <th class="num">Raised</th><th class="num">Investors</th><th>Latest filing</th><th>City and state</th>
+    <th class="num">Raised</th><th class="num">Remaining</th><th class="num">Investors</th><th>Latest filing</th><th>City and state</th>
     <th>People</th><th>Prior firm</th><th>Website</th><th>Adviser</th><th class="num">Employees</th>
     <th class="num">RAUM</th><th class="num">SEC hedge funds</th><th>Outreach</th><th>EDGAR</th>
   </tr></thead>
@@ -24,6 +24,7 @@
       <td class="num">{{ m.age_months }}</td>
       <td class="num">{{ m.n_funds }}</td>
       <td class="num">{{ m.total_sold | amount }}</td>
+      <td class="num">{{ m.total_remaining | amount }}</td>
       <td class="num">{{ m.total_investors | amount }}</td>
       <td class="nowrap">{{ m.latest_filing_date or "" }}</td>
       <td>{{ m | place }}</td>
@@ -38,7 +39,7 @@
       <td>{% if m.edgar_cik %}<a href="{{ links.edgar_company(m.edgar_cik) }}" target="_blank" rel="noopener">filings</a>{% endif %}</td>
     </tr>
   {% else %}
-    <tr><td colspan="19" class="empty">No managers match these filters.</td></tr>
+    <tr><td colspan="20" class="empty">No managers match these filters.</td></tr>
   {% endfor %}
   </tbody>
 </table>

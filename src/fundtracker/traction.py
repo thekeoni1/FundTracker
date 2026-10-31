@@ -21,6 +21,7 @@ TRACTION_WEIGHTS = {
     "hedge": 0,               # label: a Hedge Fund among the latest fund types (type all only)
     "prior_firm": 0,          # label: a signer or named person filed earlier for a large manager
     "adviser": 0,             # label: a high or medium Form ADV adviser link, with its kind
+    "lapsed": 0,              # label: offering_status lapsed, no open offering filed in 13 months
     "large": -20,             # LARGE_FUNDS or more funds
     "large_team": -15,        # the linked adviser reports more than LARGE_TEAM_MAX employees
     "nothing_raised": -20,    # every fund still reports nothing sold and no investors
@@ -36,6 +37,7 @@ TRACTION_LABELS = {
     "hedge": "runs a hedge fund",
     "prior_firm": "people filed earlier for a large firm",
     "adviser": "files Form ADV",
+    "lapsed": "no filing in 13 months",
     "large": "many funds already",
     "large_team": "large adviser team",
     "nothing_raised": "nothing raised yet",
@@ -131,6 +133,8 @@ def score_manager(facts):
         add("adviser", detail)
         if (facts.get("employees") or 0) > LARGE_TEAM_MAX:
             add("large_team", f"{facts['employees']:,} employees")
+    if facts.get("offering_status") == "lapsed":
+        add("lapsed", f"latest filing {latest}" if latest else "no open offering")
     if n_funds >= LARGE_FUNDS:
         add("large", f"{n_funds} funds")
     if sold == 0 and investors == 0:
