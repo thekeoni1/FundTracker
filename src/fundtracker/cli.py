@@ -284,6 +284,8 @@ def cmd_derive(conn, args):
     tiers = counts["manager_adviser"]
     print(f"advisers: {tiers['high']:,} managers linked high, {tiers['medium']:,} medium, "
           f"{tiers['none']:,} with candidates only")
+    for name, timing in counts["timings"].items():
+        print(f"  {derive.timing_line(name, timing)}")
     return 0
 
 

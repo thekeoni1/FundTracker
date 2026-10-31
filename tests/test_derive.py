@@ -351,6 +351,7 @@ def test_run_twice_gives_identical_tables_and_keeps_review(conn):
         conn.execute("INSERT INTO review (launch_id, status, notes) VALUES (?, 'watching', 'call')",
                       (launches(conn)[0]["launch_id"],))
     second = derive.run(conn, today=__import__("datetime").date(2026, 10, 30))
+    first.pop("timings"), second.pop("timings")
     assert first == second
     assert {t: [tuple(r) for r in rows] for t, rows in dump(conn).items()} == before
     assert conn.execute("SELECT status, notes FROM review").fetchall()[0][:] == ("watching", "call")
@@ -627,3 +628,24 @@ def test_people_skip_entities_filed_as_individuals_and_drop_placeholders(empty):
         dataclasses.replace(p, accession=f.accession) for p in (carne, klee))))
     derive.run(empty)
     assert [p["name"] for p in json.loads(manager_row(empty, "7000000001")["people"])] == ["Stephan Klee"]
+
+
+def test_run_times_every_step_in_order_and_logs_a_line_each(conn, caplog):
+    with caplog.at_level("INFO", logger="fundtracker.derive"):
+        counts = derive.run(conn)
+    steps = ["build_funds", "build_link_keys", "build_managers", "build_manager_stats",
+             "build_manager_advisers", "launch_scorer", "build_launches", "search_index"]
+    assert list(counts["timings"]) == steps
+    assert counts["timings"]["build_funds"]["rows"] == counts["fund"]
+    assert counts["timings"]["build_launches"]["rows"] == counts["launch"]
+    assert counts["timings"]["launch_scorer"]["rows"] is None
+    assert all(t["seconds"] >= 0 for t in counts["timings"].values())
+    logged = [r.getMessage() for r in caplog.records if r.getMessage().startswith("step: ")]
+    assert [line.split(",")[0] for line in logged] == [f"step: {s}" for s in steps]
+
+
+def test_timing_line():
+    assert derive.timing_line("build_funds", {"rows": 368314, "seconds": 13.04}) == \
+        "step: build_funds, 368,314 rows, 13.0 s"
+    assert derive.timing_line("launch_scorer", {"rows": None, "seconds": 2}) == \
+        "step: launch_scorer, - rows, 2.0 s"

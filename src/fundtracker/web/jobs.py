@@ -114,6 +114,8 @@ def run_refresh(conn, client, log):
                                      for key, status, n in adv_results) or "no files listed"))
         log("derive: rebuilding funds, managers and launches (about four minutes)")
         counts = derive.run(conn)
+        for name, timing in counts.get("timings", {}).items():
+            log(f"derive: {derive.timing_line(name, timing)}")
         log(f"derive: {counts['fund']:,} funds, {counts['manager']:,} managers, "
             f"{counts['launch']:,} launches")
         problems = []

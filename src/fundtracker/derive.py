@@ -9,6 +9,7 @@ transaction.
 import json
 import logging
 import re
+import time
 import unicodedata
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -1023,26 +1024,46 @@ DERIVE_CACHE_KIB = 131072
 def run(conn, today=None):
     """Rebuild every derived table in one transaction and log it; return the counts.
 
-    The ingest_log row (source derive, key the run date) is replaced on every
-    run, since derive always rebuilds from scratch. review is not touched.
+    counts["timings"] maps each step, in run order, to {"rows", "seconds"};
+    rows is None for a step that writes no table of its own. The ingest_log
+    row (source derive, key the run date) is replaced on every run, since
+    derive always rebuilds from scratch. review is not touched.
     """
     started = _now()
     conn.execute(f"PRAGMA mmap_size = {DERIVE_MMAP_BYTES}")
     conn.execute(f"PRAGMA cache_size = -{DERIVE_CACHE_KIB}")
+    timings = {}
+
+    def step(name, fn, *args, rows=lambda result: result):
+        began = time.perf_counter()
+        result = fn(*args)
+        timings[name] = {"rows": rows(result), "seconds": round(time.perf_counter() - began, 1)}
+        log.info(timing_line(name, timings[name]))
+        return result
+
     counts = {}
     with conn:
-        counts["fund"] = build_funds(conn)
-        keys = build_link_keys(conn)
+        counts["fund"] = step("build_funds", build_funds, conn)
+        keys = step("build_link_keys", build_link_keys, conn, rows=lambda k: k["rows"])
         counts["link_key"], counts["over_cap"] = keys["rows"], keys["over_cap"]
-        counts["manager"] = build_managers(conn)
-        build_manager_stats(conn)
-        counts["manager_adviser"] = build_manager_advisers(conn)
+        counts["manager"] = step("build_managers", build_managers, conn)
+        step("build_manager_stats", build_manager_stats, conn, rows=lambda _r: counts["manager"])
+        counts["manager_adviser"] = step("build_manager_advisers", build_manager_advisers, conn,
+                                         rows=lambda tiers: sum(tiers.values()))
         counts["fund_manager"] = counts["fund"]
-        counts["launch"] = build_launches(conn, score=launch_scorer(conn))
-        counts["search_index"] = repo.rebuild_search_index(conn)
+        score = step("launch_scorer", launch_scorer, conn, rows=lambda _r: None)
+        counts["launch"] = step("build_launches", build_launches, conn, score)
+        counts["search_index"] = step("search_index", repo.rebuild_search_index, conn)
         repo.log_ingest(conn, DERIVE_SOURCE, (today or date.today()).isoformat(), "ok",
                         n_rows=counts["launch"], started_at=started, finished_at=_now())
+    counts["timings"] = timings
     return counts
+
+
+def timing_line(name, timing):
+    """One derive step as "step: build_funds, 368,314 rows, 13.0 s"."""
+    rows = "-" if timing["rows"] is None else f"{timing['rows']:,}"
+    return f"step: {name}, {rows} rows, {timing['seconds']:.1f} s"
 
 
 def _now():

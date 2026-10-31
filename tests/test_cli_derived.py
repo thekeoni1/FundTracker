@@ -37,6 +37,10 @@ def test_derive_prints_counts(db, capsys):
     out = capsys.readouterr().out
     assert out.startswith("12 funds, 12 managers, ")
     assert "link keys (0 entity_stem, 0 entity_tokens, 0 phone, 0 address over the cap)" in out
+    for step in ("build_funds", "build_link_keys", "build_managers", "build_manager_stats",
+                 "build_manager_advisers", "launch_scorer", "build_launches", "search_index"):
+        assert f"\n  step: {step}, " in out
+    assert "\n  step: build_funds, 12 rows, " in out
 
 
 def test_new_before_derive_says_so(db, capsys):

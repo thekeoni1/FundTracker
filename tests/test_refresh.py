@@ -151,3 +151,15 @@ def test_serve_no_refresh_skips_it(serve):
 
 def test_serve_does_not_refresh_a_current_database(serve):
     assert serve(last_daily=date.today().isoformat()) == []
+
+
+def test_run_refresh_logs_the_derive_step_timings(conn, monkeypatch):
+    monkeypatch.setattr(ingest, "catchup", lambda c, client: [])
+    monkeypatch.setattr(ingest, "adv_due", lambda c: False)
+    timings = {"build_funds": {"rows": 3, "seconds": 1.5}, "launch_scorer": {"rows": None, "seconds": 0.2}}
+    monkeypatch.setattr(derive, "run", lambda c: {"fund": 3, "manager": 2, "launch": 1, "timings": timings})
+    lines = []
+    jobs.run_refresh(conn, "client", lines.append)
+    assert lines[-3:] == ["derive: step: build_funds, 3 rows, 1.5 s",
+                          "derive: step: launch_scorer, - rows, 0.2 s",
+                          "derive: 3 funds, 2 managers, 1 launches"]
