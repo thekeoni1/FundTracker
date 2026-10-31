@@ -12,7 +12,7 @@
     <th><span class="sr-only">Pick</span></th><th>Score</th><th>Manager</th><th>First seen</th><th class="num">Age</th><th class="num">Funds</th>
     <th class="num">Raised</th><th class="num">Investors</th><th>Latest filing</th><th>City and state</th>
     <th>People</th><th>Prior firm</th><th>Website</th><th>Adviser</th><th class="num">Employees</th>
-    <th class="num">RAUM</th><th class="num">SEC hedge funds</th><th>EDGAR</th>
+    <th class="num">RAUM</th><th class="num">SEC hedge funds</th><th>Outreach</th><th>EDGAR</th>
   </tr></thead>
   <tbody>
   {% for m in rows %}
@@ -34,10 +34,11 @@
       <td class="num">{{ m.employees | amount }}</td>
       <td class="num">{{ m.raum | amount }}</td>
       <td class="num">{{ m.adv_hedge_funds | amount }}</td>
+      <td class="small">{{ m | outreach }}</td>
       <td>{% if m.edgar_cik %}<a href="{{ links.edgar_company(m.edgar_cik) }}" target="_blank" rel="noopener">filings</a>{% endif %}</td>
     </tr>
   {% else %}
-    <tr><td colspan="18" class="empty">No managers match these filters.</td></tr>
+    <tr><td colspan="19" class="empty">No managers match these filters.</td></tr>
   {% endfor %}
   </tbody>
 </table>

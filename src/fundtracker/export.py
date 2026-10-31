@@ -159,6 +159,8 @@ MANAGER_COLUMNS = (
     ("Employees", 10, AMOUNT_FORMAT, lambda m: m.get("employees")),
     ("RAUM", 15, AMOUNT_FORMAT, lambda m: m.get("raum")),
     ("SEC hedge funds", 9, None, lambda m: m.get("adv_hedge_funds")),
+    ("Outreach", 16, None, lambda m: m.get("outreach_status")),
+    ("Last action", 12, None, lambda m: m.get("outreach_last_action")),
     ("Reasons", 80, None, lambda m: "; ".join(traction.reason_phrase(x)
                                                for x in json.loads(m["reasons"]))),
     ("EDGAR", 9, None, lambda m: "filings"),

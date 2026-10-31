@@ -163,7 +163,7 @@ def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
     assert header == ["Score", "Manager", "First seen", "Age months", "Funds", "Raised", "Investors",
                       "Amended", "Latest filing", "Types", "Exemptions", "City", "State", "Country",
                       "People", "Prior firm", "Website", "Adviser", "Adviser CRD", "Employees", "RAUM",
-                      "SEC hedge funds", "Reasons", "EDGAR", "Manager ID"]
+                      "SEC hedge funds", "Outreach", "Last action", "Reasons", "EDGAR", "Manager ID"]
     heron = dict(zip(header, [c.value for c in ws[2]]))
     assert (heron["Score"], heron["Manager"], heron["Funds"], heron["Raised"], heron["Investors"]) == (
         70, "Heron Capital Management LLC", 2, 18_000_000, 12)
@@ -175,11 +175,11 @@ def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
     assert heron["Reasons"].startswith("raised money (+25); amount raised (+15)")
     assert heron["Prior firm"] == "Bigfirm Capital LLC"
     assert heron["Adviser"] is None and heron["Employees"] is None  # no adviser loaded
-    assert ws["X2"].hyperlink.target == ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+    assert ws.cell(row=2, column=header.index("EDGAR") + 1).hyperlink.target == ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
                                          "&CIK=7000000001&type=D&dateb=&owner=include&count=40")
     [scale] = list(ws.conditional_formatting)
     assert str(scale.sqref) == "A2:A3" and scale.rules[0].type == "colorScale"  # Score is column A
-    assert ws.freeze_panes == "A2" and ws.auto_filter.ref == "A1:Y3"
+    assert ws.freeze_panes == "A2" and ws.auto_filter.ref == f"A1:{ws.cell(row=1, column=len(header)).column_letter}3"
 
     funds = wb["Funds"]
     fheader = [c.value for c in funds[1]]

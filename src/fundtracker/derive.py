@@ -1,8 +1,8 @@
 """The derived layer (PLAN.md section 6): funds, linking keys, managers, launches.
 
 Everything here is rebuilt from the raw tables on every run: each builder
-deletes its table's rows and refills them. review is user state and is never
-touched. The builders do not commit; derive.run wraps them in one
+deletes its table's rows and refills them. review and outreach are user state
+and are never touched. The builders do not commit; derive.run wraps them in one
 transaction.
 """
 
@@ -1027,7 +1027,7 @@ def run(conn, today=None):
     counts["timings"] maps each step, in run order, to {"rows", "seconds"};
     rows is None for a step that writes no table of its own. The ingest_log
     row (source derive, key the run date) is replaced on every run, since
-    derive always rebuilds from scratch. review is not touched.
+    derive always rebuilds from scratch. review and outreach are not touched.
     """
     started = _now()
     conn.execute(f"PRAGMA mmap_size = {DERIVE_MMAP_BYTES}")

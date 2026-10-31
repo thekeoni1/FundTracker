@@ -22,6 +22,8 @@ PRIOR_FIRMS = {"any": "with or without a prior firm", "with": "with a prior firm
 ADVISERS = {"any": "with or without a Form ADV adviser", "linked": "with a Form ADV adviser",
             "ria": "registered adviser (RIA)", "era": "exempt reporting adviser (ERA)",
             "none": "no Form ADV adviser"}
+OUTREACH = {"any": "in the outreach sheet or not", "untouched": "not in the outreach sheet",
+            "in_sheet": "in the outreach sheet"}
 EMPLOYEES = {"any": "any headcount", "1-5": "1 to 5 employees", "6-20": "6 to 20 employees",
              "21+": "21 or more employees"}
 LAUNCH_SORTS = {"score": "best score first", "date": "newest first", "raised": "most raised first"}
@@ -63,6 +65,7 @@ def emerging_filters(args, today):
         "prior_firm": _choice(args.get("prior_firm"), PRIOR_FIRMS),
         "adviser": _choice(args.get("adviser"), ADVISERS),
         "employees": _choice(args.get("employees"), EMPLOYEES),
+        "outreach": _choice(args.get("outreach"), OUTREACH),
         "sort": _choice(args.get("sort"), EMERGING_SORTS),
     }
 
@@ -77,7 +80,7 @@ def describe_launches(f):
 def describe_emerging(f):
     return _describe(f, [f"first seen {f['first_seen_from']} to {f['first_seen_to']}"], EMERGING_SORTS, (
         ("type", TYPES), ("raised", RAISED), ("platforms", PLATFORMS), ("prior_firm", PRIOR_FIRMS),
-        ("adviser", ADVISERS), ("employees", EMPLOYEES)))
+        ("adviser", ADVISERS), ("employees", EMPLOYEES), ("outreach", OUTREACH)))
 
 
 def _describe(f, phrases, sorts, choices):

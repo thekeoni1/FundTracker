@@ -1,4 +1,5 @@
-"""The site's Refresh job: ingest catchup and adv, then derive, in a background thread.
+"""The site's Refresh job: ingest catchup and adv, derive, then the outreach pull, in a
+background thread.
 
 The only place the site touches the network. One job runs at a time; a
 second start while one runs is refused. The job keeps its state (idle,
@@ -11,7 +12,7 @@ import logging
 import threading
 from datetime import datetime
 
-from fundtracker import derive, ingest
+from fundtracker import config, derive, ingest, outreach
 from fundtracker.db import repo
 
 # Lines kept for the status bar; a catchup over many days logs one line per day.
@@ -85,11 +86,12 @@ def refresh_runner(db_path):
 
 def run_refresh(conn, client, log):
     """Catchup from EDGAR's daily index, the Form ADV files when a new month is due
-    (ingest.adv_due), then derive, logging each step through log.
+    (ingest.adv_due), derive, then outreach.pull when FUNDTRACKER_OUTREACH_CSV is set,
+    logging each step through log.
 
     The one code path behind the site's Refresh button, fundtracker refresh
-    and the scheduled task. Raises RuntimeError after derive if any day or adviser
-    file failed.
+    and the scheduled task. Raises RuntimeError at the end if any day or adviser
+    file failed. A failed outreach pull is logged and does not fail the refresh.
     """
     progress = logging.getLogger("fundtracker.ingest")
     handler = _LineHandler(log)
@@ -118,6 +120,12 @@ def run_refresh(conn, client, log):
             log(f"derive: {derive.timing_line(name, timing)}")
         log(f"derive: {counts['fund']:,} funds, {counts['manager']:,} managers, "
             f"{counts['launch']:,} launches")
+        if config.OUTREACH_CSV:
+            try:
+                kept, skipped = outreach.pull(conn, config.OUTREACH_CSV)
+                log(f"outreach: {kept:,} rows kept, {skipped:,} without a key")
+            except Exception as exc:  # the rankings are rebuilt; a missing sheet should not fail them
+                log(f"outreach: pull failed ({type(exc).__name__}: {exc})")
         problems = []
         if failed:
             problems.append(f"catchup failed on {', '.join(str(r.day) for r in failed)}")

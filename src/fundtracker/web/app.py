@@ -185,7 +185,8 @@ def emerging_rows(conn, f, today):
         conn, f["first_seen_from"], f["first_seen_to"],
         ["Hedge Fund"] if f["type"] == "hedge" else None, exclude_over_cap=f["platforms"] == "hide",
         max_funds=traction.EMERGING_MAX_FUNDS, raised=f["raised"], states=f["state"],
-        prior_firm=f["prior_firm"], adviser=f["adviser"], employees=f["employees"])
+        prior_firm=f["prior_firm"], adviser=f["adviser"], employees=f["employees"],
+        outreach=f["outreach"])
     rows = traction.score_managers(managers, today, f["type"], f["min_score"])
     # Python's sort is stable, so each other order keeps the score order within a tie.
     if f["sort"] == "raised":
@@ -262,6 +263,7 @@ def _register_filters(app):
         exemptions=lambda text: ", ".join(classify.sort_exemptions(json.loads(text or "[]"))),
         address=_address,
         adviser_label=_adviser_label,
+        outreach=_outreach,
     )
     app.jinja_env.globals.update(links=links, reason_labels=newness.REASON_LABELS)
 
@@ -270,6 +272,15 @@ def _adviser_label(m):
     """RIA or ERA with the link's confidence: "RIA, high". Empty when unlinked."""
     kind = m.get("adviser_kind")
     return f"{kind.upper()}, {m['adviser_confidence']}" if kind else ""
+
+
+def _outreach(m):
+    """The outreach sheet's status and last action: "Outreach Sent, 2026-10-20". Empty when
+    the manager is not in the sheet; "in the sheet" when its row has neither."""
+    if not m.get("outreach_in_sheet"):
+        return ""
+    shown = [p for p in (m.get("outreach_status"), m.get("outreach_last_action")) if p]
+    return ", ".join(shown) or "in the sheet"
 
 
 def _address(f):
