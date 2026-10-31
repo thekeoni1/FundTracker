@@ -9,6 +9,7 @@ transaction.
 import json
 import logging
 import re
+import unicodedata
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
@@ -592,11 +593,13 @@ def adviser_stem(name):
 
 
 def adviser_tokens(name):
-    """The words of adviser_stem(name) that can show a manager and an adviser are the same
-    firm: not in ADV_SUFFIX_TOKENS or GENERIC_STEM_TOKENS, at least MIN_KEY_LENGTH long."""
-    stem = adviser_stem(name) or ""
-    return frozenset(t for t in stem.split() if len(t) >= MIN_KEY_LENGTH
-                     and t not in ADV_SUFFIX_TOKENS and t not in GENERIC_STEM_TOKENS)
+    """The words of adviser_stem(name), accents folded first (ARÈNE reads ARENE), that can
+    show a manager and an adviser are the same firm: not in ADV_SUFFIX_TOKENS,
+    GENERIC_STEM_TOKENS or LINK_KEY_STOPLIST (CAPITAL, MANAGEMENT), at least MIN_KEY_LENGTH long."""
+    folded = "".join(c for c in unicodedata.normalize("NFKD", name or "") if not unicodedata.combining(c))
+    stem = adviser_stem(folded) or ""
+    return frozenset(t for t in stem.split() if len(t) >= MIN_KEY_LENGTH and t not in ADV_SUFFIX_TOKENS
+                     and t not in GENERIC_STEM_TOKENS and t not in LINK_KEY_STOPLIST)
 
 
 def _adviser_keys(conn):

@@ -57,6 +57,10 @@ EXTRA = [
     adviser("900203", "HARBOR HEDGE ADVISERS", phone="303-555-0177", hedge=True),
     # Alone at an address, sharing only a suffix and a generic token with the manager there.
     adviser("900204", "BRIGHT FUND LLC", "99 MEADOW LANE", "73301"),
+    # Alone at an address, sharing only CAPITAL MANAGEMENT with the manager there (Benchstone).
+    adviser("900205", "SHALESTONE CAPITAL MANAGEMENT LP", "12 FERRY STREET", "94105"),
+    # Alone at an address, its name written with an accent (Arène).
+    adviser("900206", "ARÈNE CAPITAL MANAGEMENT LP", "14 RUE STREET", "10013"),
 ]
 
 
@@ -76,6 +80,10 @@ def conn():
         fund(9, "Tundra Fund LP", phone="303 555 0199"),
         fund(10, "Glacier Fund LP", phone="303.555.0177"),
         fund(11, "Polar Fund LLC", street1="99 Meadow Lane", zip_code="73301", entity="Polar Fund LLC"),
+        fund(12, "Squarestreet Fund LP", street1="12 Ferry Street", zip_code="94105",
+             entity="Squarestreet Capital Management, LLC"),
+        fund(13, "Arene Fund LP", street1="14 Rue Street", zip_code="10013",
+             entity="Arene Capital Partners GP LLC"),
     ]
     for f in funds:
         repo.upsert_filing(c, f)
@@ -139,6 +147,14 @@ def test_suffix_and_generic_tokens_are_not_shared_name_tokens(conn):
     assert link(conn, 11) == (None, "none", [], ["900204"])
 
 
+def test_sharing_only_capital_management_gives_candidates_only(conn):
+    assert link(conn, 12) == (None, "none", [], ["900205"])
+
+
+def test_an_accented_adviser_name_shares_its_folded_token(conn):
+    assert link(conn, 13) == ("900206", "medium", ["address", "name_token"], ["900206"])
+
+
 def test_a_manager_matching_nothing_gets_no_row(conn):
     assert link(conn, 7) is None
 
@@ -157,7 +173,7 @@ def test_derive_twice_gives_identical_tables(conn):
     before = dump()
     counts = derive.run(conn)
     assert dump() == before
-    assert counts["manager_adviser"] == {"high": 3, "medium": 2, "none": 4}
+    assert counts["manager_adviser"] == {"high": 3, "medium": 3, "none": 5}
 
 
 @pytest.mark.parametrize("name, stem", [
@@ -172,9 +188,10 @@ def test_adviser_stem(name, stem):
 
 
 @pytest.mark.parametrize("name, tokens", [
-    ("Orsino Partners Fund GP, LLC", {"ORSINO", "PARTNERS"}),
-    ("BRIGHT CAPITAL FUND LLC", {"BRIGHT", "CAPITAL"}),
-    ("RRJ MANAGEMENT LTD", {"MANAGEMENT"}),
+    ("Orsino Partners Fund GP, LLC", {"ORSINO"}),
+    ("BRIGHT CAPITAL FUND LLC", {"BRIGHT"}),
+    ("RRJ MANAGEMENT LTD", set()),
+    ("ARÈNE CAPITAL MANAGEMENT LP", {"ARENE"}),
     ("THE FUND, LLC", set()),
     (None, set()),
 ])
