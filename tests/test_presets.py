@@ -74,7 +74,7 @@ def test_defaults_mark_the_default_preset_only(launches, emerging):
 
 def test_a_preset_is_not_marked_on_another_presets_page(launches, emerging):
     raised = active(launches.get("/launches?raised=%3E0").get_data(as_text=True))
-    assert "Raised already" in raised and "Small minimums" not in raised
+    assert raised == ["Raised already"]  # the defaults preset matches too, but sets nothing
     assert active(launches.get("/launches?type=all&min_inv=%3C100k").get_data(as_text=True)) == ["Small minimums"]
     assert active(emerging.get("/emerging?prior_firm=with").get_data(as_text=True)) == ["Spin-outs"]
     # Half a preset is not the preset.
@@ -87,3 +87,10 @@ def test_the_table_partial_redraws_the_presets_out_of_band(emerging):
     assert 'id="presets" class="presets" aria-label="Presets" hx-swap-oob="true"' in text
     assert active(text) == ["Spin-outs"]
     assert "hx-swap-oob" not in emerging.get("/emerging/table?prior_firm=with").get_data(as_text=True)
+
+
+def test_one_preset_marked_the_one_setting_most_filters():
+    current = filters.launch_filters(MultiDict({"raised": ">0", "min_inv": "<100k"}), LAUNCH_TODAY)
+    marks = presets.marked(presets.LAUNCH_PRESETS, current, filters.launch_filters, LAUNCH_TODAY)
+    # Raised already and Small minimums both match and set one filter each: the first wins.
+    assert [p["label"] for p in marks if p["active"]] == ["Raised already"]
