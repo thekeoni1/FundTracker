@@ -198,7 +198,7 @@ Idempotency rule: every writer upserts on the natural key and every step is reco
 
 ### 7.6 Emerging managers (traction score, `traction.py`)
 
-A second ranking for a different question: not "what launched this week" but "which small shops launched 6 to 18 months ago and are working". The unit is the manager. Candidates are managers whose first filing falls in the age window, excluding over-cap organisations and managers with 20 or more funds. The traction score adds points for amount sold (as a band with a sweet spot of 5,000,000 to 100,000,000 and penalties above 500,000,000, because multi-billion raises are new series of large institutions), investors, an amendment after the first notice, a second vehicle and recent filing activity, and subtracts for size or nothing raised; weights live in `TRACTION_WEIGHTS`. Hedge mode keeps only managers with a Hedge Fund vehicle; the 3(c) admission rule is for `new` only. A zero-point `prior_firm` label names a large manager the people previously filed with. The manager row carries the individual related persons from the latest filings so the user can address a founder by name. Exposed as `fundtracker emerging` with its own workbook.
+A second ranking for a different question: not "what launched this week" but "which small shops launched 6 to 18 months ago and are working". The unit is the manager. Candidates are managers whose first filing falls in the age window, excluding over-cap organisations and managers with 20 or more funds. The traction score adds points for amount sold (as a band with a sweet spot of 5,000,000 to 100,000,000 and penalties above 500,000,000, because multi-billion raises are new series of large institutions), investors, an amendment after the first notice, a second vehicle and recent filing activity, and subtracts for size or nothing raised; weights live in `TRACTION_WEIGHTS`. Hedge mode keeps only managers with a Hedge Fund vehicle; the 3(c) admission rule is for `new` only. A zero-point `prior_firm` label names a large manager the people previously filed with. A zero-point `adviser` label names the linked Form ADV adviser's kind and confidence, and `large_team` subtracts 15 when that adviser reports more than 100 employees (WP7b). The manager row carries the individual related persons from the latest filings so the user can address a founder by name. Exposed as `fundtracker emerging` with its own workbook.
 
 ## 8. User interface
 
@@ -352,6 +352,16 @@ Deliver: `ingest adv` loading the SEC's monthly registered and exempt adviser CS
 Done when: both files load and reload idempotently; MALT Partners shows 2 employees and RAUM 36,321,031; the Emerging page filters by adviser kind and employee band; coverage numbers are in PROGRESS.md; the user accepts the enriched page.
 
 Brief: "Implement WP7 from docs/SESSIONS.md Session 10."
+
+### WP7b: Adviser link cleanup, derive timings, team-size penalty
+
+Depends on: WP7 (accepted 2026-10-30).
+
+Deliver: the name-token rule for address-only links and for phone-only links to advisers without hedge funds (otherwise candidates only); per-step wall time and row counts logged by `derive` and shown by the CLI and the Refresh job; the `large_team` traction penalty (-15 above 100 employees, no small-team bonus, RAUM unscored); the Session 11 entry with timings and before-and-after tier counts from the user's hand run.
+
+Done when: the Session 10 false links (Woodbourne, RRJ, Magic Stone, Blue Box Docs) are gone and Orso Partners and MALT Partners keep theirs; derive prints a timing line per step; no top-20 emerging hedge manager shows an adviser above 100 employees without the penalty; question 27 closed; the user accepts the Emerging page again.
+
+Brief: "Implement WP7b from docs/SESSIONS.md Session 11."
 
 ## 10. Decisions taken and decisions left open
 
