@@ -22,6 +22,7 @@ TRACTION_WEIGHTS = {
     "prior_firm": 0,          # label: a signer or named person filed earlier for a large manager
     "adviser": 0,             # label: a high or medium Form ADV adviser link, with its kind
     "large": -20,             # LARGE_FUNDS or more funds
+    "large_team": -15,        # the linked adviser reports more than LARGE_TEAM_MAX employees
     "nothing_raised": -20,    # every fund still reports nothing sold and no investors
 }
 TRACTION_LABELS = {
@@ -36,6 +37,7 @@ TRACTION_LABELS = {
     "prior_firm": "people filed earlier for a large firm",
     "adviser": "files Form ADV",
     "large": "many funds already",
+    "large_team": "large adviser team",
     "nothing_raised": "nothing raised yet",
 }
 # Amount raised in bands: (from, up to, points), from inclusive, up to exclusive,
@@ -49,6 +51,9 @@ RAISED_BANDS = (
     (2_000_000_000, None, -30),
 )
 MANY_INVESTORS = 10
+# A linked adviser with more employees than this is a large firm, not a small shop.
+# Exempt reporting advisers report no headcount, so a missing figure scores nothing.
+LARGE_TEAM_MAX = 100
 RECENT_MONTHS = 6
 LARGE_FUNDS = 10
 HEDGE_FUND = "Hedge Fund"
@@ -124,6 +129,8 @@ def score_manager(facts):
         if facts.get("employees") is not None:
             detail += f", {facts['employees']} employees"
         add("adviser", detail)
+        if (facts.get("employees") or 0) > LARGE_TEAM_MAX:
+            add("large_team", f"{facts['employees']:,} employees")
     if n_funds >= LARGE_FUNDS:
         add("large", f"{n_funds} funds")
     if sold == 0 and investors == 0:
@@ -159,7 +166,13 @@ def _band_text(low, high):
     return f"{low:,} and up" if high is None else f"{low:,} to {high:,}"
 
 
+# Reasons whose phrase names their detail: "large adviser team, 417 employees (-15)".
+PHRASE_WITH_DETAIL = frozenset({"large_team"})
+
+
 def reason_phrase(reason):
     """A reason dict as its label and signed points: "raised money (+25)"."""
     label = TRACTION_LABELS.get(reason["code"], reason["code"].replace("_", " "))
+    if reason["code"] in PHRASE_WITH_DETAIL:
+        label = f"{label}, {reason['detail']}"
     return f"{label} ({reason['points']:+d})" if reason["points"] else label

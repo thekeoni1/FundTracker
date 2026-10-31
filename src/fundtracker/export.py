@@ -219,6 +219,7 @@ def write_emerging_workbook(path, managers, funds, meta):
         ("Investors for the higher tier", traction.MANY_INVESTORS),
         ("Recent activity, months", traction.RECENT_MONTHS),
         ("Funds that count as large", traction.LARGE_FUNDS),
+        ("Adviser employees above which the team counts as large", traction.LARGE_TEAM_MAX),
     ], traction.TRACTION_WEIGHTS, traction.TRACTION_LABELS)
     wb.save(path)
 

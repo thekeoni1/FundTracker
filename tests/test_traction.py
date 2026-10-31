@@ -113,3 +113,25 @@ def test_months_and_labels():
     assert set(TRACTION_LABELS) == set(TRACTION_WEIGHTS) | {"raised_band"}  # band points: RAISED_BANDS
     assert reason_phrase({"code": "raised", "points": 25, "detail": ""}) == "raised money (+25)"
     assert reason_phrase({"code": "hedge", "points": 0, "detail": ""}) == "runs a hedge fund"
+
+
+ADVISER = {"adviser_kind": "ria", "adviser_confidence": "high"}
+
+
+@pytest.mark.parametrize("changes, penalised", [
+    (dict(ADVISER, employees=101), True),
+    (dict(ADVISER, employees=100), False),
+    (dict(ADVISER, employees=None), False),
+    ({"adviser_kind": "era", "adviser_confidence": "high", "employees": None}, False),
+    ({"employees": 2434}, False),  # no linked adviser, so no figure to trust
+])
+def test_large_team_penalty(changes, penalised):
+    score, reasons = score_manager(facts(**changes))
+    assert ("large_team" in codes(reasons)) is penalised
+    assert score == 25 - 15 * penalised
+
+
+def test_large_team_phrase_names_the_headcount():
+    _score, reasons = score_manager(facts(**ADVISER, employees=2434))
+    (reason,) = [r for r in reasons if r["code"] == "large_team"]
+    assert reason_phrase(reason) == "large adviser team, 2,434 employees (-15)"
