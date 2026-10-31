@@ -198,7 +198,7 @@ Idempotency rule: every writer upserts on the natural key and every step is reco
 
 ### 7.6 Emerging managers (traction score, `traction.py`)
 
-A second ranking for a different question: not "what launched this week" but "which small shops launched 6 to 18 months ago and are working". The unit is the manager. Candidates are managers whose first filing falls in the age window, excluding over-cap organisations and managers with 20 or more funds. The traction score adds points for amount sold (as a band with a sweet spot of 5,000,000 to 100,000,000 and penalties above 500,000,000, because multi-billion raises are new series of large institutions), investors, an amendment after the first notice, a second vehicle and recent filing activity, and subtracts for size or nothing raised; weights live in `TRACTION_WEIGHTS`. Hedge mode keeps only managers with a Hedge Fund vehicle; the 3(c) admission rule is for `new` only. A zero-point `prior_firm` label names a large manager the people previously filed with. A zero-point `adviser` label names the linked Form ADV adviser's kind and confidence, and `large_team` subtracts 15 when that adviser reports more than 100 employees (WP7b). The manager row carries the individual related persons from the latest filings so the user can address a founder by name. Exposed as `fundtracker emerging` with its own workbook.
+A second ranking for a different question: not "what launched this week" but "which small shops launched 6 to 18 months ago and are working". The unit is the manager. Candidates are managers whose first filing falls in the age window, excluding over-cap organisations and managers with 20 or more funds. The traction score adds points for amount sold (as a band with a sweet spot of 5,000,000 to 100,000,000 and penalties above 500,000,000, because multi-billion raises are new series of large institutions), investors, an amendment after the first notice, a second vehicle and recent filing activity, and subtracts for size or nothing raised; weights live in `TRACTION_WEIGHTS`. Hedge mode keeps only managers with a Hedge Fund vehicle; the 3(c) admission rule is for `new` only. A zero-point `prior_firm` label names a large manager the people previously filed with. A zero-point `adviser` label names the linked Form ADV adviser's kind and confidence, and `large_team` subtracts 15 when that adviser reports more than 100 employees (WP7b). A zero-point `lapsed` label marks a manager none of whose funds has filed in 13 months with an indefinite offering or an amount remaining; Form D is amended yearly while an offering continues (WP5b). The manager row carries the individual related persons from the latest filings so the user can address a founder by name. Exposed as `fundtracker emerging` with its own workbook.
 
 ## 8. User interface
 
@@ -325,13 +325,15 @@ Deliver: Flask 3.0.3 app with vendored HTMX; Launches and Emerging pages whose f
 
 Done when: `fundtracker serve` opens the launches page; filters compose and the URL carries them; export matches the visible rows; detail pages render in under a second on the real data; Refresh runs; pages render acceptably at phone width.
 
-### WP5b: Review state and outreach tracker
+### WP5b: Outreach sheet export and read-back, offering status, presets
 
-Depends on: WP5. Deferred by the user on 2026-10-30 until the read-only site is in use.
+Depends on: WP7b (accepted 2026-10-31). Reshaped 2026-10-31: the user keeps one outreach tracker for every field in a Google Sheet, so FundTracker feeds it instead of holding review state (decisions log). The `review` table stays in the schema, unused.
 
-Deliver: `review` table writes through the UI (status, notes, contacted date), ignored managers hidden by default, a follow-ups page, "new since last visit".
+Deliver: a CSV export of selected emerging managers, one row per named person, in the sheet's column order with the EDGAR CIK as the key; a read-back of the sheet (`FUNDTRACKER_OUTREACH_CSV`, a downloaded CSV or a published URL) into an `outreach` table that derive never touches, shown as a status column and filter on the Emerging page and on the manager page; an offering status per manager (`open` or `lapsed`, 13 months) with a filter, a `Remaining` column and a zero-point label; named filter presets above the filters on both pages.
 
-Brief: "Implement WP5 from PLAN.md: the local web UI (inbox, launch/fund detail, manager detail, search, export, status bar) over the existing database with Flask, Jinja2 and HTMX."
+Done when: the exported rows import into the sheet with "Append to current sheet" and come back as a status on the Emerging page after a pull; the offering filter splits the 780 emerging hedge managers at about 666 open and 114 lapsed; each preset renders and marks itself; the user accepts the Emerging page.
+
+Brief: "Implement WP5b from docs/SESSIONS.md Session 12."
 
 ### WP6: Self-running, README, search index, digest, GitHub
 
