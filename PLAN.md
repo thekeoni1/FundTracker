@@ -355,7 +355,7 @@ Brief: "Implement WP7 from docs/SESSIONS.md Session 10."
 
 ### WP7b: Adviser link cleanup, derive timings, team-size penalty
 
-Depends on: WP7 (accepted 2026-10-30).
+Depends on: WP7 (accepted 2026-10-30). Built in Session 11 and accepted 2026-10-31 (commit 42d9b94): 207 of 780 emerging hedge managers linked (from 255), all Session 10 false links gone, 12 managers carry `large_team`, derive prints a timing line per step (build_manager_stats 400 of 969 s, question 29).
 
 Deliver: the name-token rule for address-only links and for phone-only links to advisers without hedge funds (otherwise candidates only); per-step wall time and row counts logged by `derive` and shown by the CLI and the Refresh job; the `large_team` traction penalty (-15 above 100 employees, no small-team bonus, RAUM unscored); the Session 11 entry with timings and before-and-after tier counts from the user's hand run.
 
