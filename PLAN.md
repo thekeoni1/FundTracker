@@ -371,7 +371,7 @@ Depends on: WP5b (accepted 2026-11-02). Question 29. Measured 2026-11-02 from a 
 
 Deliver: `fund` carries its latest filing's offering figures (`latest_sold`, `latest_investors`, `latest_is_indefinite`, `latest_remaining`, `latest_is_amendment`, `latest_city`), filled by `build_funds` from rows it already joins, so `build_manager_stats` reads `fund` alone, and left out of the workbook Funds sheets by an export constant; the individuals on the latest filings read once into a temp table shared by the people and prior-firm passes; the prior-firm scan driven from the large managers; the step split into `build_manager_stats`, `build_manager_people` and `build_manager_prior_firms`, each with its timing line; the Session 13 entry with the hand run's timings and a before-and-after hash of `manager`.
 
-Done when: `manager` hashes identical before and after the hand run, `offering_status` aside; the three steps together take under half of Session 12's 107.4 s; the Emerging default window shows the same counts; question 29 closed, or narrowed to the next largest steps; the user has seen the timing lines.
+Done when: `manager` hashes identical before and after the hand run, `offering_status` aside; the three steps together take under half of Session 12's 107.4 s; the Emerging default window shows the same counts; question 29 closed, or narrowed to the next largest steps; the user has seen the timing lines. Built in Session 13 and accepted 2026-11-02 (commit a808d5d): the manager hash equal before and after, the Emerging page unchanged, the three steps 83.2 s against 107.4 s, so question 29 is narrowed to the people pass's Python and the next largest steps.
 
 Brief: "Implement WP8 from docs/SESSIONS.md Session 13."
 
