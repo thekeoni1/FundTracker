@@ -185,6 +185,7 @@ def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
     fheader = [c.value for c in funds[1]]
     assert fheader[:3] == ["Manager ID", "Manager score", "EDGAR"]
     assert {"latest_total_amount_sold", "latest_n_investors", "first_filing_date"} <= set(fheader)
+    assert not {"latest_sold", "latest_investors", "latest_city"} & set(fheader)
     assert funds.max_row - 1 == 3  # Heron's two funds and Teal's one
 
     people = [[c.value for c in row] for row in wb["People"].iter_rows()]

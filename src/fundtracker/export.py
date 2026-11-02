@@ -27,6 +27,9 @@ SCORE_COLOURS = ("F8696B", "FFEB84", "63BE7B")
 FUND_DATE_COLUMNS = {"first_filing_date", "latest_filing_date"}
 FUND_AMOUNT_COLUMNS = {"total_amount_sold_num", "n_investors", "min_investment_num",
                        "total_offering_amount_num", "latest_total_amount_sold", "latest_n_investors"}
+# Fund columns derive keeps for manager stats; the Funds sheets leave them out.
+FUND_SKIPPED_COLUMNS = {"latest_sold", "latest_investors", "latest_is_indefinite", "latest_remaining",
+                        "latest_is_amendment", "latest_city"}
 
 
 def _date(text):
@@ -280,8 +283,9 @@ def _finish_table(ws):
 
 def _funds_sheet(ws, funds, lead):
     """One row per fund: the lead (header, key, width) columns, an EDGAR link to its
-    first filing, then every other fund column under its own name."""
-    keys = {key for _h, key, _w in lead} | {"funds"}
+    first filing, then every other fund column under its own name except
+    FUND_SKIPPED_COLUMNS."""
+    keys = {key for _h, key, _w in lead} | {"funds"} | FUND_SKIPPED_COLUMNS
     columns = [c for c in (funds[0] if funds else ()) if c not in keys]
     rows = []
     for f in funds:

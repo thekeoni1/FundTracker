@@ -89,6 +89,7 @@ def test_funds_reasons_and_about(workbook):
     header = [c.value for c in funds[1]]
     assert header[:4] == ["Launch ID", "Launch score", "EDGAR", "cik"]
     assert {"first_filing_date", "min_investment_num", "family_stem"} <= set(header)
+    assert not export.FUND_SKIPPED_COLUMNS & set(header)
     first = by_header(funds, 2)
     assert (first["Launch ID"], first["Launch score"], first["cik"]) == (
         "0002158817-26-000001", 100, "0002158817")

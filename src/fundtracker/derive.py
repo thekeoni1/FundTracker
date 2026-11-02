@@ -73,7 +73,9 @@ def build_funds(conn):
 
     Name, classification and exemptions come from the latest filing (by
     filing date, then accession); offering terms and year of incorporation
-    from the first, which is the notice that launched the fund.
+    from the first, which is the notice that launched the fund. The latest_
+    columns carry the latest filing's offering figures and city, so
+    build_manager_stats reads fund alone.
     """
     conn.execute("DELETE FROM fund")
     rows = conn.execute(
@@ -92,7 +94,11 @@ def build_funds(conn):
                fo.sale_yet_to_occur, fo.total_amount_sold_num, fo.n_investors,
                fo.min_investment_num, fo.total_offering_amount_num,
                fo.total_offering_amount_is_indefinite,
-               fi.year_of_inc_choice, fi.year_of_inc_value
+               fi.year_of_inc_choice, fi.year_of_inc_value,
+               o.total_amount_sold_num AS latest_sold, o.n_investors AS latest_investors,
+               o.total_offering_amount_is_indefinite AS latest_is_indefinite,
+               o.total_remaining_num AS latest_remaining,
+               l.submission_type = 'D/A' AS latest_is_amendment, i.city AS latest_city
         FROM ends e
         JOIN filing f ON f.accession = e.first_accession
         JOIN filing l ON l.accession = e.latest_accession
@@ -115,11 +121,13 @@ def build_funds(conn):
                 r["sale_yet_to_occur"], r["total_amount_sold_num"], r["n_investors"],
                 r["min_investment_num"], r["total_offering_amount_num"],
                 r["total_offering_amount_is_indefinite"], r["year_of_inc_choice"],
-                r["year_of_inc_value"],
+                r["year_of_inc_value"], r["latest_sold"], r["latest_investors"],
+                r["latest_is_indefinite"], r["latest_remaining"], r["latest_is_amendment"],
+                r["latest_city"],
             )
 
     # Streamed: a list of every fund row held about 300 MB on the real data.
-    return conn.executemany(f"INSERT INTO fund VALUES ({', '.join('?' * 23)})", fund_rows()).rowcount
+    return conn.executemany(f"INSERT INTO fund VALUES ({', '.join('?' * 29)})", fund_rows()).rowcount
 
 
 def _usable(key):
@@ -427,7 +435,8 @@ def open_since(today):
 def build_manager_stats(conn, today=None):
     """Fill the traction columns of manager from its funds' latest filings.
 
-    Run after build_managers and build_link_keys. SQLite does the sums; Python
+    Run after build_managers and build_link_keys. SQLite does the sums over the
+    fund rows (build_funds copies the latest filing's figures onto them); Python
     only splits fund types, names the country and walks the related persons
     one manager at a time, so memory stays flat.
 
@@ -449,23 +458,20 @@ def build_manager_stats(conn, today=None):
                 WITH stats AS (
                     SELECT fm.manager_id, sum(f.n_filings) AS n_filings,
                            max(f.latest_filing_date) AS latest,
-                           sum(coalesce(lo.total_amount_sold_num, 0)) AS sold,
-                           sum(coalesce(lo.n_investors, 0)) AS investors,
-                           max(f.n_filings > 1 AND lf.submission_type = 'D/A') AS amended,
+                           sum(coalesce(f.latest_sold, 0)) AS sold,
+                           sum(coalesce(f.latest_investors, 0)) AS investors,
+                           max(f.n_filings > 1 AND f.latest_is_amendment) AS amended,
                            group_concat(DISTINCT f.fund_type) AS types,
                            max(f.latest_filing_date >= :since
-                               AND (lo.total_offering_amount_is_indefinite = 1
-                                    OR lo.total_remaining_num > 0)) AS is_open,
-                           sum(CASE WHEN coalesce(lo.total_offering_amount_is_indefinite, 0) = 0
-                                    THEN coalesce(lo.total_remaining_num, 0) END) AS remaining
+                               AND (f.latest_is_indefinite = 1 OR f.latest_remaining > 0)) AS is_open,
+                           sum(CASE WHEN coalesce(f.latest_is_indefinite, 0) = 0
+                                    THEN coalesce(f.latest_remaining, 0) END) AS remaining
                     FROM fund_manager fm JOIN fund f USING (cik)
-                    LEFT JOIN offering lo ON lo.accession = f.latest_accession
-                    LEFT JOIN filing lf ON lf.accession = f.latest_accession
                     GROUP BY fm.manager_id
                 )
-                SELECT s.*, i.city, i.state_or_country, i.state_or_country_desc
+                SELECT s.*, e.latest_city AS city, e.state AS state_or_country,
+                       e.country AS state_or_country_desc
                 FROM stats s JOIN fund e ON e.cik = substr(s.manager_id, 2)
-                LEFT JOIN issuer i ON i.accession = e.latest_accession AND i.is_primary = 1
                 """, {"since": since}):
             manager_id = r["manager_id"]
             types = sorted(set((r["types"] or "").split(",")) - {""})

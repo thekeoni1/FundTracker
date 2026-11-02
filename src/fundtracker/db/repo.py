@@ -77,6 +77,12 @@ ADDED_COLUMNS = (
     ("manager", "adv_filing_date", "TEXT"),
     ("manager", "offering_status", "TEXT"),
     ("manager", "total_remaining", "INTEGER"),
+    ("fund", "latest_sold", "INTEGER"),
+    ("fund", "latest_investors", "INTEGER"),
+    ("fund", "latest_is_indefinite", "INTEGER"),
+    ("fund", "latest_remaining", "INTEGER"),
+    ("fund", "latest_is_amendment", "INTEGER"),
+    ("fund", "latest_city", "TEXT"),
 )
 
 
@@ -536,8 +542,8 @@ def get_launch(conn, launch_id):
     ciks = json.loads(launch["fund_ciks"] or "[]")
     funds = {r["cik"]: dict(r) for r in conn.execute(
         f"""
-        SELECT f.*, o.sale_date, i.street1, i.street2, i.city, i.state_or_country,
-               i.state_or_country_desc, i.zip, i.phone
+        SELECT o.sale_date, i.street1, i.street2, i.city, i.state_or_country,
+               i.state_or_country_desc, i.zip, i.phone, f.*
         FROM fund f
         LEFT JOIN offering o ON o.accession = f.first_accession
         LEFT JOIN issuer i ON i.accession = f.first_accession AND i.is_primary = 1

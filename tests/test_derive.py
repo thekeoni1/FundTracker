@@ -110,6 +110,63 @@ def test_build_funds_replaces_earlier_rows(conn):
     assert repo.get_fund(conn, "2153113") is None
 
 
+
+LATEST_COLUMNS = ("latest_sold", "latest_investors", "latest_is_indefinite", "latest_remaining",
+                  "latest_is_amendment", "latest_city")
+
+
+def amended_pair(base):
+    """A fund whose D/A reports new figures and a new city, and a fund with one filing."""
+    first = lone(base, 1, "Amended Fund LP", "2025-06-02",
+                 offering={"total_amount_sold_num": 1_000_000, "n_investors": 2,
+                           "total_remaining_num": 9_000_000, "total_offering_amount_is_indefinite": False})
+    later = variant(first, "7000000001-26-000002", filing_date="2026-02-10", issuer={"city": "Boston"},
+                    offering={"total_amount_sold_num": 5_000_000, "n_investors": 7,
+                              "total_remaining_num": 5_000_000})
+    later = dataclasses.replace(later, filing=dataclasses.replace(later.filing, submission_type="D/A"))
+    return first, later, lone(base, 2, "Single Fund LP", "2025-07-01")
+
+
+def test_fund_carries_the_latest_filings_figures_beside_the_first(empty):
+    base = fixture("0002158817-26-000001")
+    for f in amended_pair(base):
+        repo.upsert_filing(empty, f)
+    derive.build_funds(empty)
+    amended, single = repo.get_fund(empty, "7000000001"), repo.get_fund(empty, "7000000002")
+    assert (amended["latest_sold"], amended["latest_investors"], amended["latest_remaining"]) == (
+        5_000_000, 7, 5_000_000)
+    assert (amended["total_amount_sold_num"], amended["n_investors"]) == (1_000_000, 2)
+    assert (amended["latest_is_amendment"], amended["latest_is_indefinite"]) == (1, 0)
+    assert amended["latest_city"] == "Boston"
+    assert single["latest_is_amendment"] == 0
+    assert single["latest_city"] == base.issuers[0].city
+
+
+def test_an_old_fund_table_gains_the_latest_columns_and_derive_fills_them(tmp_path):
+    path = tmp_path / "old.db"
+    old = repo.connect(path)
+    for column in reversed(LATEST_COLUMNS):
+        old.execute(f"ALTER TABLE fund DROP COLUMN {column}")
+    for f in all_fixtures():
+        repo.upsert_filing(old, f)
+    old.close()
+    c = repo.connect(path)
+    assert [r[1] for r in c.execute("PRAGMA table_info(fund)")][-6:] == list(LATEST_COLUMNS)
+    derive.run(c)
+    assert repo.get_fund(c, "2158817")["latest_city"] == "HOUSTON"
+    c.close()
+
+
+def test_launch_funds_keep_the_first_filings_address(empty):
+    base = fixture("0002158817-26-000001")
+    for f in amended_pair(base):
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    launch_id = empty.execute("SELECT launch_id FROM launch WHERE anchor_cik = '7000000001'").fetchone()[0]
+    [fund] = repo.get_launch(empty, launch_id)["funds"]
+    assert fund["city"] == base.issuers[0].city != "Boston"
+
+
 # build_link_keys
 
 
@@ -649,3 +706,66 @@ def test_timing_line():
         "step: build_funds, 368,314 rows, 13.0 s"
     assert derive.timing_line("launch_scorer", {"rows": None, "seconds": 2}) == \
         "step: launch_scorer, - rows, 2.0 s"
+
+
+# Manager people and prior firms, read once (Session 13)
+
+PEOPLE_BASELINE = Path(__file__).parent / "fixtures" / "derive" / "manager_people_baseline.json"
+
+
+def people_scenario():
+    """The fixture filings plus managers that exercise every branch of the people and
+    prior-firm passes: amended latest filings, merged roles, the MAX_PEOPLE cut, several
+    large firms ranked by size and a name found only on a large firm's earlier filing."""
+    base = fixture("0002158817-26-000001")
+    filings = all_fixtures()
+    analyst = person(base, 2, "Priya", "Raman", ("Executive Officer",))
+    former = person(base, 3, "Olga", "Former", ("Director",))
+    big = firm(base, 100, 14, "Bigfirm Capital Management LLC", "Jane Doe", person_=analyst)
+    # Olga is on the first filing of one Bigfirm fund only; its D/A drops her.
+    olga_first = dataclasses.replace(big[0], related_persons=big[0].related_persons + (
+        dataclasses.replace(former, accession=big[0].accession),))
+    olga_gone = variant(big[0], "7000000100-26-000002", filing_date="2024-09-01")
+    filings += [olga_first, olga_gone] + big[1:]
+    filings += firm(base, 200, 11, "Middling Advisors LP", "Jane Doe", person_=analyst)
+    filings += firm(base, 300, 10, "Tenfold Partners LLC", "Jane Doe")
+    filings += firm(base, 400, 12, "Fourth Large Group LLC", "Jane Doe")
+    filings += firm(base, 500, 3, "Smallshop Partners LLC", "Bob Roe")
+    filings.append(signed_by(lone(base, 1, "Jane Spinout Fund LP", "2025-06-02"), "Jane Doe"))
+    priya = lone(base, 2, "Raman Fund LP", "2025-06-02")
+    filings.append(dataclasses.replace(priya, related_persons=(
+        dataclasses.replace(analyst, accession=priya.accession, seq=1),)))
+    filings.append(signed_by(lone(base, 3, "Bob Spinout Fund LP", "2025-06-02"), "Bob Roe"))
+    olga = lone(base, 4, "Former Fund LP", "2025-08-01")
+    filings.append(dataclasses.replace(olga, related_persons=(
+        dataclasses.replace(former, accession=olga.accession, seq=1),)))
+    # Two funds of one manager: ten people, a shared one with two roles, and a D/A
+    # that replaces the first fund's people.
+    gp = person(base, 1, "N/A", "Crowded House Capital LLC", entity=True)
+    crowd = [person(base, i + 2, f"Person{i}", "Crowd") for i in range(9)]
+    shared = person(base, 11, "Sam", "Shared", ("Promoter",))
+    one = lone(base, 600, "Crowded House Fund I LP", "2025-01-10")
+    one = dataclasses.replace(one, related_persons=tuple(
+        dataclasses.replace(p, accession=one.accession) for p in [gp, shared] + crowd[:3]))
+    one_da = variant(one, "7000000600-26-000002", filing_date="2026-03-01",
+                     related_persons=(gp, dataclasses.replace(shared, seq=2), crowd[4]))
+    two = lone(base, 601, "Crowded House Fund II LP", "2025-02-10")
+    two = dataclasses.replace(two, related_persons=tuple(
+        dataclasses.replace(p, accession=two.accession) for p in [gp, dataclasses.replace(
+            shared, relationships=("Executive Officer", "Promoter"))] + crowd))
+    filings += [one, one_da, two]
+    return filings
+
+
+def manager_people(conn):
+    return {r[0]: [r[1], r[2]] for r in conn.execute(
+        "SELECT manager_id, people, prior_firms FROM manager "
+        "WHERE people IS NOT NULL OR prior_firms IS NOT NULL ORDER BY manager_id")}
+
+
+def test_people_and_prior_firms_match_what_the_two_pass_code_wrote(empty):
+    # Captured on 2224abf, before Session 13 changed the people and prior-firm passes.
+    for f in people_scenario():
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    assert manager_people(empty) == json.loads(PEOPLE_BASELINE.read_text(encoding="utf-8"))

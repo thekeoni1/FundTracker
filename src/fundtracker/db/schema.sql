@@ -220,7 +220,14 @@ CREATE TABLE IF NOT EXISTS fund (
     total_offering_amount_num           INTEGER,
     total_offering_amount_is_indefinite INTEGER,
     year_of_inc_choice                  TEXT,
-    year_of_inc_value                   INTEGER
+    year_of_inc_value                   INTEGER,
+    -- offering figures and city from the latest filing (build_manager_stats reads them)
+    latest_sold                         INTEGER,
+    latest_investors                    INTEGER,
+    latest_is_indefinite                INTEGER,
+    latest_remaining                    INTEGER,
+    latest_is_amendment                 INTEGER,
+    latest_city                         TEXT
 );
 
 CREATE TABLE IF NOT EXISTS link_key (
