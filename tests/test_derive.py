@@ -691,11 +691,14 @@ def test_run_times_every_step_in_order_and_logs_a_line_each(conn, caplog):
     with caplog.at_level("INFO", logger="fundtracker.derive"):
         counts = derive.run(conn)
     steps = ["build_funds", "build_link_keys", "build_managers", "build_manager_stats",
+             "build_manager_people", "build_manager_prior_firms",
              "build_manager_advisers", "launch_scorer", "build_launches", "search_index"]
     assert list(counts["timings"]) == steps
     assert counts["timings"]["build_funds"]["rows"] == counts["fund"]
     assert counts["timings"]["build_launches"]["rows"] == counts["launch"]
     assert counts["timings"]["launch_scorer"]["rows"] is None
+    for name in ("build_manager_stats", "build_manager_people", "build_manager_prior_firms"):
+        assert counts["timings"][name]["rows"] == counts["manager"]
     assert all(t["seconds"] >= 0 for t in counts["timings"].values())
     logged = [r.getMessage() for r in caplog.records if r.getMessage().startswith("step: ")]
     assert [line.split(",")[0] for line in logged] == [f"step: {s}" for s in steps]
@@ -769,3 +772,18 @@ def test_people_and_prior_firms_match_what_the_two_pass_code_wrote(empty):
         repo.upsert_filing(empty, f)
     derive.run(empty)
     assert manager_people(empty) == json.loads(PEOPLE_BASELINE.read_text(encoding="utf-8"))
+
+
+def test_run_twice_gives_identical_tables_and_leaves_no_temp_tables(empty):
+    for f in people_scenario():
+        repo.upsert_filing(empty, f)
+
+    def tables():
+        return {name: [tuple(r) for r in empty.execute(f"SELECT * FROM {name} ORDER BY 1, 2")]
+                for name in ("fund", "manager", "fund_manager", "link_key", "launch")}
+
+    derive.run(empty)
+    first = tables()
+    derive.run(empty)
+    assert tables() == first
+    assert empty.execute("SELECT name FROM temp.sqlite_master WHERE type = 'table'").fetchall() == []

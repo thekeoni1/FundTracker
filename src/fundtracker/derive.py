@@ -437,8 +437,8 @@ def build_manager_stats(conn, today=None):
 
     Run after build_managers and build_link_keys. SQLite does the sums over the
     fund rows (build_funds copies the latest filing's figures onto them); Python
-    only splits fund types, names the country and walks the related persons
-    one manager at a time, so memory stays flat.
+    only splits fund types and names the country. build_manager_people and
+    build_manager_prior_firms fill people and prior_firms.
 
     offering_status is open when any member fund's latest filing is on or after
     open_since(today) and reports an indefinite offering or a remaining amount
@@ -488,8 +488,40 @@ def build_manager_stats(conn, today=None):
                total_remaining = ?
         WHERE manager_id = ?
         """, rows())
+
+
+def _latest_people(conn):
+    """Read the individuals on every member fund's latest filing into temp.latest_person,
+    once for the people and prior-firm passes. Its rows are what both passes read; it
+    is dropped by build_manager_prior_firms."""
+    conn.execute("DROP TABLE IF EXISTS temp.latest_person")
+    conn.execute(
+        """
+        CREATE TEMP TABLE latest_person AS
+        SELECT fm.manager_id, f.cik, f.first_filing_date, f.latest_accession, f.latest_filing_date,
+               rp.seq, rp.first, rp.middle, rp.last, rp.name_norm, rp.relationships
+        FROM fund_manager fm JOIN fund f USING (cik)
+        JOIN related_person rp ON rp.accession = f.latest_accession
+        WHERE rp.is_entity = 0
+        """)
+    conn.execute("CREATE INDEX temp.latest_person_order "
+                 "ON latest_person(manager_id, first_filing_date, cik, seq)")
+
+
+def build_manager_people(conn):
+    """Fill manager.people from the individuals on the member funds' latest filings.
+    Run after build_manager_stats; leaves temp.latest_person for build_manager_prior_firms."""
+    _latest_people(conn)
     conn.executemany("UPDATE manager SET people = ? WHERE manager_id = ?", _people(conn))
+
+
+def build_manager_prior_firms(conn):
+    """Fill manager.prior_firms. Run after build_manager_people, whose temp.latest_person
+    it reads (building it if absent) and then drops."""
+    if conn.execute("SELECT 1 FROM temp.sqlite_master WHERE name = 'latest_person'").fetchone() is None:
+        _latest_people(conn)
     conn.executemany("UPDATE manager SET prior_firms = ? WHERE manager_id = ?", _prior_firms(conn))
+    conn.execute("DROP TABLE temp.latest_person")
 
 
 # A manager with this many funds is a large firm for the prior_firm label.
@@ -504,7 +536,7 @@ def _prior_firms(conn):
     PRIOR_FIRM_FUNDS or more funds: up to MAX_PRIOR_FIRMS display names, largest first.
 
     Names are compared as name_norm and signer_norm. SQLite matches them through two
-    temporary tables, so Python only holds the result.
+    temporary tables, so Python only holds the result. Reads temp.latest_person.
     """
     conn.execute("DROP TABLE IF EXISTS temp.big_names")
     conn.execute("DROP TABLE IF EXISTS temp.manager_names")
@@ -516,10 +548,11 @@ def _prior_firms(conn):
             FROM link_key lk JOIN fund_manager fm USING (cik) JOIN manager m USING (manager_id)
             WHERE lk.kind = 'signer' AND m.n_funds >= :big
             UNION ALL
+            -- CROSS JOIN keeps this order: left alone the planner scans every related person
             SELECT rp.name_norm, fm.manager_id, f.filing_date
-            FROM manager m JOIN fund_manager fm USING (manager_id)
-            JOIN filing f ON f.cik = fm.cik JOIN related_person rp USING (accession)
-            WHERE m.n_funds >= :big AND rp.is_entity = 0 AND rp.name_norm IS NOT NULL
+            FROM manager m CROSS JOIN fund_manager fm CROSS JOIN filing f CROSS JOIN related_person rp
+            WHERE fm.manager_id = m.manager_id AND f.cik = fm.cik AND rp.accession = f.accession
+              AND m.n_funds >= :big AND rp.is_entity = 0 AND rp.name_norm IS NOT NULL
         ) GROUP BY name, manager_id
         """, {"big": PRIOR_FIRM_FUNDS})
     conn.execute("CREATE INDEX temp.big_names_name ON big_names(name)")
@@ -529,10 +562,7 @@ def _prior_firms(conn):
         SELECT DISTINCT fm.manager_id, lk.key AS name
         FROM link_key lk JOIN fund_manager fm USING (cik) WHERE lk.kind = 'signer'
         UNION
-        SELECT fm.manager_id, rp.name_norm
-        FROM fund_manager fm JOIN fund f USING (cik)
-        JOIN related_person rp ON rp.accession = f.latest_accession
-        WHERE rp.is_entity = 0 AND rp.name_norm IS NOT NULL
+        SELECT manager_id, name_norm FROM latest_person WHERE name_norm IS NOT NULL
         """)
     current, firms = None, []
     for r in conn.execute(
@@ -571,16 +601,13 @@ def _place(city, code, desc):
 def _people(conn):
     """Yield (people JSON, manager_id) for every manager with an individual related person
     on a member fund's latest filing: up to MAX_PEOPLE, deduped by name_norm with roles
-    merged, funds in first-filing order and persons in filing order."""
+    merged, funds in first-filing order and persons in filing order. Reads temp.latest_person."""
     current, people = None, {}
     for r in conn.execute(
             """
-            SELECT fm.manager_id, f.cik, f.latest_accession, f.latest_filing_date,
-                   rp.first, rp.middle, rp.last, rp.name_norm, rp.relationships
-            FROM fund_manager fm JOIN fund f USING (cik)
-            JOIN related_person rp ON rp.accession = f.latest_accession
-            WHERE rp.is_entity = 0
-            ORDER BY fm.manager_id, f.first_filing_date, f.cik, rp.seq
+            SELECT manager_id, cik, latest_accession, latest_filing_date,
+                   first, middle, last, name_norm, relationships
+            FROM latest_person ORDER BY manager_id, first_filing_date, cik, seq
             """):
         if r["manager_id"] != current:
             if people:
@@ -1081,6 +1108,9 @@ def run(conn, today=None):
         counts["link_key"], counts["over_cap"] = keys["rows"], keys["over_cap"]
         counts["manager"] = step("build_managers", build_managers, conn)
         step("build_manager_stats", build_manager_stats, conn, today, rows=lambda _r: counts["manager"])
+        step("build_manager_people", build_manager_people, conn, rows=lambda _r: counts["manager"])
+        step("build_manager_prior_firms", build_manager_prior_firms, conn,
+             rows=lambda _r: counts["manager"])
         counts["manager_adviser"] = step("build_manager_advisers", build_manager_advisers, conn,
                                          rows=lambda tiers: sum(tiers.values()))
         counts["fund_manager"] = counts["fund"]
