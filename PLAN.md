@@ -325,13 +325,13 @@ Deliver: Flask 3.0.3 app with vendored HTMX; Launches and Emerging pages whose f
 
 Done when: `fundtracker serve` opens the launches page; filters compose and the URL carries them; export matches the visible rows; detail pages render in under a second on the real data; Refresh runs; pages render acceptably at phone width.
 
-### WP5b: Outreach sheet export and read-back, offering status, presets
+### WP5b: Offering status and filter presets
 
-Depends on: WP7b (accepted 2026-10-31). Reshaped 2026-10-31: the user keeps one outreach tracker for every field in a Google Sheet, so FundTracker feeds it instead of holding review state (decisions log). The `review` table stays in the schema, unused.
+Depends on: WP7b (accepted 2026-10-31). Reshaped 2026-10-31 and narrowed 2026-11-02: the user keeps one outreach tracker for every field in a Google Sheet and chose to keep FundTracker out of it, so the sheet export and read-back first built in Session 12 were removed before pushing (decisions log). The `review` table stays in the schema, unused. FundTracker finds managers; who has been contacted is tracked elsewhere.
 
-Deliver: a CSV export of selected emerging managers, one row per named person, in the sheet's column order with the EDGAR CIK as the key; a read-back of the sheet (`FUNDTRACKER_OUTREACH_CSV`, a downloaded CSV or a published URL) into an `outreach` table that derive never touches, shown as a status column and filter on the Emerging page and on the manager page; an offering status per manager (`open` or `lapsed`, 13 months) with a filter, a `Remaining` column and a zero-point label; named filter presets above the filters on both pages.
+Deliver: an offering status per manager (`open` or `lapsed`, 13 months) with a filter, a `Remaining` column and a zero-point label; named filter presets above the filters on both pages.
 
-Done when: the exported rows import into the sheet with "Append to current sheet" and come back as a status on the Emerging page after a pull; the offering filter splits the 780 emerging hedge managers at about 666 open and 114 lapsed; each preset renders and marks itself; the user accepts the Emerging page.
+Done when: the offering filter splits the 780 emerging hedge managers at about 666 open and 114 lapsed; each preset renders and marks itself; the user accepts the Emerging page.
 
 Brief: "Implement WP5b from docs/SESSIONS.md Session 12."
 
