@@ -327,7 +327,7 @@ Done when: `fundtracker serve` opens the launches page; filters compose and the 
 
 ### WP5b: Offering status and filter presets
 
-Depends on: WP7b (accepted 2026-10-31). Reshaped 2026-10-31 and narrowed 2026-11-02: the user keeps one outreach tracker for every field in a Google Sheet and chose to keep FundTracker out of it, so the sheet export and read-back first built in Session 12 were removed before pushing (decisions log). The `review` table stays in the schema, unused. FundTracker finds managers; who has been contacted is tracked elsewhere.
+Depends on: WP7b (accepted 2026-10-31). Reshaped 2026-10-31 and narrowed 2026-11-02: the user keeps one outreach tracker for every field in a Google Sheet and chose to keep FundTracker out of it, so the sheet export and read-back first built in Session 12 were removed before pushing (decisions log). The `review` table stays in the schema, unused. FundTracker finds managers; who has been contacted is tracked elsewhere. Built in Session 12 and accepted 2026-11-02 (commit 09d12ed): 666 of 779 emerging hedge managers open and 113 lapsed, 77 with a Remaining value, three presets on each page, offering status a zero-point label (question 30 closed).
 
 Deliver: an offering status per manager (`open` or `lapsed`, 13 months) with a filter, a `Remaining` column and a zero-point label; named filter presets above the filters on both pages.
 
