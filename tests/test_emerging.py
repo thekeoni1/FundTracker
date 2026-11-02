@@ -163,7 +163,7 @@ def test_emerging_workbook(world, capsys, tmp_path, monkeypatch):
     assert header == ["Score", "Manager", "First seen", "Age months", "Funds", "Raised", "Offering",
                       "Remaining", "Investors", "Amended", "Latest filing", "Types", "Exemptions", "City", "State", "Country",
                       "People", "Prior firm", "Website", "Adviser", "Adviser CRD", "Employees", "RAUM",
-                      "SEC hedge funds", "Outreach", "Last action", "Reasons", "EDGAR", "Manager ID"]
+                      "SEC hedge funds", "Reasons", "EDGAR", "Manager ID"]
     heron = dict(zip(header, [c.value for c in ws[2]]))
     assert (heron["Score"], heron["Manager"], heron["Funds"], heron["Raised"], heron["Investors"]) == (
         70, "Heron Capital Management LLC", 2, 18_000_000, 12)

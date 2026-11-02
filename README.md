@@ -41,12 +41,6 @@ Emerging lists managers whose first Form D is 6 to 18 months old, ranked by trac
 
 The links above each page's filters are presets, saved combinations of the filters below them.
 
-## The outreach sheet
-
-Outreach is tracked in a Google Sheet that FundTracker feeds and reads back. Tick managers on the Emerging page and press "Outreach CSV for ticked", or use the Outreach CSV link on a manager's page. The download has one row per named person in the sheet's twelve columns, with the manager's EDGAR CIK in `FT KEY` and no header row, so File, Import, "Append to current sheet" adds it as it is. Format the `FT KEY` column as plain text, or Sheets drops a CIK's leading zeros (the read-back pads them back either way).
-
-To see in FundTracker who is in the sheet, download the `MASTER` tab as CSV into the data folder and set `FUNDTRACKER_OUTREACH_CSV` in `.env` to its path. `fundtracker outreach pull` reads it, and so does every refresh after `derive`. Only `FT KEY`, `NAME`, `STATUS` and `LAST ACTION` are stored. The Emerging page then has an Outreach column and filter. The setting also takes the https URL of the tab published to the web as CSV, but anyone with that link can read the sheet, contact details included.
-
 ## Data and settings
 
 The database, the cached EDGAR XML and the data set zips live in `data/`, or wherever `FUNDTRACKER_DATA_DIR` in `.env` points. Keep them out of OneDrive or any other synced folder: the database is about 2 GB and a sync client re-uploads it after every refresh. Exports and digests go to `data/exports/` unless `FUNDTRACKER_EXPORT_DIR` says otherwise. Nothing under `data/` is committed.

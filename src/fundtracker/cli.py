@@ -9,7 +9,6 @@
     refresh                                  ingest catchup, ingest adv when a new month
                                              is due, then derive (what the site's Refresh
                                              button and the scheduled task run)
-    outreach pull                            read the outreach sheet CSV (FUNDTRACKER_OUTREACH_CSV)
     schedule install|show|remove             a weekday 06:30 refresh in Task Scheduler
     digest [--since 7d] [--out PATH]         the week's launches and emerging changes, as Markdown
     new [--since 7d] [--min-score N] [--type hedge|all] [--xlsx [PATH]] [--csv PATH]
@@ -75,11 +74,6 @@ def main(argv=None):
 
     p = sub.add_parser("refresh", help="ingest catchup and adv, then derive: the site's Refresh job")
     p.set_defaults(func=cmd_refresh)
-
-    p = sub.add_parser("outreach", help="the outreach sheet")
-    outreach_sub = p.add_subparsers(dest="outreach_command", required=True)
-    q = outreach_sub.add_parser("pull", help="read the sheet's MASTER tab as CSV from FUNDTRACKER_OUTREACH_CSV")
-    q.set_defaults(func=cmd_outreach_pull)
 
     p = sub.add_parser("schedule", help="add, show or remove a weekday 06:30 refresh task")
     p.add_argument("action", choices=("install", "show", "remove"))
@@ -306,22 +300,6 @@ def cmd_refresh(conn, args):
         print(f"failed: {exc}")
         return 1
     print(f"refresh done in {time.monotonic() - started:.0f}s")
-    return 0
-
-
-def cmd_outreach_pull(conn, args):
-    from fundtracker import outreach
-
-    if not config.OUTREACH_CSV:
-        print("FUNDTRACKER_OUTREACH_CSV is not set: download the sheet's MASTER tab as CSV and "
-              "set it to that file's path in .env", file=sys.stderr)
-        return 2
-    try:
-        kept, skipped = outreach.pull(conn, config.OUTREACH_CSV)
-    except (OSError, ValueError) as exc:
-        print(f"outreach: pull failed ({type(exc).__name__}: {exc})", file=sys.stderr)
-        return 1
-    print(f"outreach: {kept:,} rows kept, {skipped:,} without a key")
     return 0
 
 

@@ -16,7 +16,6 @@
   {% with name="adviser", value=f.adviser, choices=options.ADVISERS, label="Adviser" %}{% include "_select.html" %}{% endwith %}
   {% with name="employees", value=f.employees, choices=options.EMPLOYEES, label="Employees" %}{% include "_select.html" %}{% endwith %}
   {% with name="offering", value=f.offering, choices=options.OFFERINGS, label="Offering" %}{% include "_select.html" %}{% endwith %}
-  {% with name="outreach", value=f.outreach, choices=options.OUTREACH, label="Outreach" %}{% include "_select.html" %}{% endwith %}
   {% with name="sort", value=f.sort, choices=options.EMERGING_SORTS, label="Sort" %}{% include "_select.html" %}{% endwith %}
   <button type="submit">Apply</button>
 </form>

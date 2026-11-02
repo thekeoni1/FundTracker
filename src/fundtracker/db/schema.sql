@@ -194,7 +194,7 @@ CREATE INDEX IF NOT EXISTS issuer_address ON issuer(zip, street1);
 
 -- Derived tables (PLAN.md section 6), refilled by derive.run on every run.
 -- derive deletes and reinserts their rows and never drops them, so indexes
--- added by hand survive. review and outreach are user state and derive never touches them.
+-- added by hand survive. review is user state and derive never touches it.
 
 CREATE TABLE IF NOT EXISTS fund (
     cik                                 TEXT PRIMARY KEY,
@@ -303,16 +303,6 @@ CREATE TABLE IF NOT EXISTS review (
     status      TEXT NOT NULL DEFAULT 'new',   -- new, reviewed, watching, contacted, ignore
     notes       TEXT,
     updated_at  TEXT
-);
-
--- The outreach sheet as last pulled (outreach.pull replaces it). User state like
--- review: derive never touches it. ft_key is the manager's EDGAR CIK.
-CREATE TABLE IF NOT EXISTS outreach (
-    ft_key      TEXT PRIMARY KEY,
-    name        TEXT,
-    status      TEXT,
-    last_action TEXT,
-    fetched_at  TEXT
 );
 
 CREATE INDEX IF NOT EXISTS link_key_kind_key ON link_key(kind, key);

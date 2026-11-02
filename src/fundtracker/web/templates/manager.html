@@ -8,7 +8,6 @@
   <dt>Phone as filed</dt><dd>{{ phone or "" }}</dd>
   <dt>Funds</dt><dd>{{ m.n_funds }}{% if m.total_sold is not none %}, {{ m.total_sold | amount }} raised from {{ m.total_investors | amount }} investors{% endif %}</dd>
   <dt>Prior firms</dt><dd>{{ m | prior_firms }}</dd>
-  <dt>Outreach</dt><dd>{{ m | outreach or "Not in the outreach sheet" }}</dd>
   <dt>Linked by</dt><dd>{{ m.key_kind or "a single fund" }}</dd>
   <dt>Manager ID</dt><dd>{{ m.manager_id }}</dd>
 </dl>
@@ -16,7 +15,6 @@
   {% if m.edgar_cik %}<li><a href="{{ links.edgar_company(m.edgar_cik) }}" target="_blank" rel="noopener">EDGAR filings</a></li>{% endif %}
   <li><a href="{{ links.web_search(m.display_name) }}" target="_blank" rel="noopener">Web search</a></li>
   <li><a href="{{ links.iapd_search(m.display_name) }}" target="_blank" rel="noopener">SEC adviser search (IAPD)</a></li>
-  <li><a href="{{ url_for('manager_outreach', manager_id=m.manager_id) }}" download>Outreach CSV</a></li>
 </ul>
 
 <h2>Form ADV adviser</h2>

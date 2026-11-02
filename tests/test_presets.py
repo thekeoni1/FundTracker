@@ -64,7 +64,7 @@ def test_each_preset_renders_with_its_filters_and_marks_itself(request, page, la
 def test_the_links_carry_only_the_presets_keys():
     assert [p["query"] for p in presets.marked(presets.EMERGING_PRESETS, filters.emerging_filters(
         MultiDict(), EMERGING_TODAY), filters.emerging_filters, EMERGING_TODAY)] == [
-        "adviser=linked&employees=1-5", "offering=open&outreach=untouched", "prior_firm=with"]
+        "adviser=linked&employees=1-5", "offering=open", "prior_firm=with"]
 
 
 def test_defaults_mark_the_default_preset_only(launches, emerging):
@@ -77,8 +77,9 @@ def test_a_preset_is_not_marked_on_another_presets_page(launches, emerging):
     assert raised == ["Raised already"]  # the defaults preset matches too, but sets nothing
     assert active(launches.get("/launches?type=all&min_inv=%3C100k").get_data(as_text=True)) == ["Small minimums"]
     assert active(emerging.get("/emerging?prior_firm=with").get_data(as_text=True)) == ["Spin-outs"]
+    assert active(emerging.get("/emerging?offering=open").get_data(as_text=True)) == ["Still raising"]
     # Half a preset is not the preset.
-    assert active(emerging.get("/emerging?offering=open").get_data(as_text=True)) == []
+    assert active(emerging.get("/emerging?adviser=linked").get_data(as_text=True)) == []
 
 
 def test_the_table_partial_redraws_the_presets_out_of_band(emerging):

@@ -407,23 +407,9 @@ def emerging_managers(conn, today, min_age_months, max_age_months, fund_types=No
                                fund_types, exclude_over_cap, max_funds)
 
 
-# The outreach filter: whether the manager's EDGAR CIK is an FT KEY in the outreach sheet.
-OUTREACH_FILTERS = {"untouched": "o.ft_key IS NULL", "in_sheet": "o.ft_key IS NOT NULL"}
-
-
-def _outreach_join(conn):
-    """(columns, join) adding outreach_in_sheet (0 or 1), outreach_status and
-    outreach_last_action to a query on manager m."""
-    columns = ("o.ft_key IS NOT NULL AS outreach_in_sheet, o.status AS outreach_status, "
-               "o.last_action AS outreach_last_action")
-    if not _has_table(conn, "outreach"):  # a database the schema has not been applied to since
-        return columns, "LEFT JOIN (SELECT NULL AS ft_key, NULL AS status, NULL AS last_action) o ON 0"
-    return columns, "LEFT JOIN outreach o ON o.ft_key = m.edgar_cik"
-
-
 def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=True, max_funds=20,
                         raised=None, states=(), prior_firm="any", adviser="any", employees=None,
-                        offering="any", outreach="any"):
+                        offering="any"):
     """Managers first seen from oldest to newest (dates, both included).
 
     Only managers with a Pooled Investment Fund are listed; fund_types (for
@@ -434,9 +420,8 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     asked. raised is a key of RAISED_BANDS on the manager's total sold;
     states are the state codes of its earliest fund (edgar_cik); prior_firm
     is "with", "without" or "any"; adviser is a key of ADVISER_FILTERS or "any";
-    employees a key of EMPLOYEE_BANDS; offering "open", "lapsed" or "any"; outreach a
-    key of OUTREACH_FILTERS or "any". Each
-    row is a dict of manager columns, outreach_status and outreach_last_action, with
+    employees a key of EMPLOYEE_BANDS; offering "open", "lapsed" or "any". Each
+    row is a dict of manager columns with
     "funds": its fund rows, oldest first, each with latest_total_amount_sold
     and latest_n_investors from its latest filing.
     """
@@ -461,18 +446,14 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     if offering in ("open", "lapsed"):
         where.append("m.offering_status = ?")
         params.append(offering)
-    if outreach in OUTREACH_FILTERS:
-        where.append(OUTREACH_FILTERS[outreach])
     pooled = "f.industry_group = 'Pooled Investment Fund'"
     if fund_types:
         pooled += f" AND f.fund_type IN ({', '.join('?' * len(fund_types))})"
         params.extend(fund_types)
     where.append(f"EXISTS (SELECT 1 FROM fund_manager fm JOIN fund f USING (cik) "
                  f"WHERE fm.manager_id = m.manager_id AND {pooled})")
-    columns, join = _outreach_join(conn)
     managers = [dict(r, funds=[]) for r in conn.execute(
-        f"SELECT m.*, {columns} FROM manager m {join} WHERE {' AND '.join(where)} ORDER BY m.manager_id",
-        params)]
+        f"SELECT m.* FROM manager m WHERE {' AND '.join(where)} ORDER BY m.manager_id", params)]
     by_id = {m["manager_id"]: m for m in managers}
     ids = list(by_id)
     for start in range(0, len(ids), 500):
@@ -503,11 +484,8 @@ def get_fund(conn, cik):
 
 
 def get_manager(conn, manager_id):
-    """The manager row as a dict with outreach_status and outreach_last_action and its funds
-    (oldest first) under "funds", or None."""
-    columns, join = _outreach_join(conn)
-    row = conn.execute(f"SELECT m.*, {columns} FROM manager m {join} WHERE m.manager_id = ?",
-                       (manager_id,)).fetchone()
+    """The manager row as a dict with its funds (oldest first) under "funds", or None."""
+    row = conn.execute("SELECT * FROM manager WHERE manager_id = ?", (manager_id,)).fetchone()
     if row is None:
         return None
     manager = dict(row)

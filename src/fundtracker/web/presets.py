@@ -19,7 +19,7 @@ LAUNCH_PRESETS = (
 )
 EMERGING_PRESETS = (
     ("Small shops with a website", {"adviser": "linked", "employees": "1-5"}),
-    ("Open and not contacted", {"offering": "open", "outreach": "untouched"}),
+    ("Still raising", {"offering": "open"}),
     ("Spin-outs", {"prior_firm": "with"}),
 )
 

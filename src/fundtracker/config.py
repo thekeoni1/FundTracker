@@ -60,19 +60,6 @@ EXPORT_DIR = _resolve(_setting("FUNDTRACKER_EXPORT_DIR", "data/exports"))
 RATE_LIMIT_PER_SEC = float(_setting("FUNDTRACKER_RATE_LIMIT_PER_SEC", "5"))
 
 
-def _outreach_source(text):
-    """An https URL as is, a path resolved like the others, None when unset."""
-    text = (text or "").strip()
-    if not text:
-        return None
-    return text if text.lower().startswith("https://") else _resolve(text)
-
-
-# The outreach sheet's MASTER tab as CSV, read back by outreach.pull: a downloaded
-# file (recommended) or the tab published to the web. Unset means no read-back.
-OUTREACH_CSV = _outreach_source(_setting("FUNDTRACKER_OUTREACH_CSV"))
-
-
 def user_agent():
     """Return the SEC User-Agent, or raise ConfigError explaining how to set it.
 

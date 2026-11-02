@@ -14,7 +14,7 @@ from datetime import date, datetime
 
 from flask import Flask, abort, g, render_template, request, send_file, url_for
 
-from fundtracker import classify, config, export, newness, outreach, traction
+from fundtracker import classify, config, export, newness, traction
 from fundtracker.db import repo
 from fundtracker.web import filters, jobs, links, presets
 
@@ -110,24 +110,6 @@ def create_app(connect=None, today=None, refresher=None):
         export.write_emerging_workbook(out, rows, funds, meta)
         return _xlsx(out, f"emerging-{f['type']}-{oldest}-to-{newest}-{today():%Y%m%d}.xlsx")
 
-    def outreach_csv(manager_ids):
-        managers = [repo.get_manager(db(), i) or abort(404) for i in manager_ids]
-        out = io.StringIO()
-        outreach.write_sheet_csv(out, outreach.sheet_rows(managers))
-        return send_file(io.BytesIO(out.getvalue().encode("utf-8")), mimetype="text/csv",
-                         as_attachment=True, download_name=f"outreach-{today():%Y%m%d}.csv")
-
-    @app.post("/emerging/outreach.csv")
-    def emerging_outreach():
-        ids = list(dict.fromkeys(request.form.getlist("manager_id")))
-        if not ids:
-            abort(400, "Tick at least one manager.")
-        return outreach_csv(ids)
-
-    @app.get("/manager/<manager_id>/outreach.csv")
-    def manager_outreach(manager_id):
-        return outreach_csv([manager_id])
-
     @app.get("/launch/<launch_id>")
     def launch(launch_id):
         row = repo.get_launch(db(), launch_id) or abort(404)
@@ -188,7 +170,7 @@ def emerging_rows(conn, f, today):
         ["Hedge Fund"] if f["type"] == "hedge" else None, exclude_over_cap=f["platforms"] == "hide",
         max_funds=traction.EMERGING_MAX_FUNDS, raised=f["raised"], states=f["state"],
         prior_firm=f["prior_firm"], adviser=f["adviser"], employees=f["employees"],
-        offering=f["offering"], outreach=f["outreach"])
+        offering=f["offering"])
     rows = traction.score_managers(managers, today, f["type"], f["min_score"])
     # Python's sort is stable, so each other order keeps the score order within a tie.
     if f["sort"] == "raised":
@@ -268,7 +250,6 @@ def _register_filters(app):
         exemptions=lambda text: ", ".join(classify.sort_exemptions(json.loads(text or "[]"))),
         address=_address,
         adviser_label=_adviser_label,
-        outreach=_outreach,
         remaining=_remaining,
     )
     app.jinja_env.globals.update(links=links, reason_labels=newness.REASON_LABELS)
@@ -287,15 +268,6 @@ def _remaining(f, prefix=""):
     if f[f"{prefix}total_offering_amount_is_indefinite"] or offering is None:
         return None
     return max(0, offering - (f[f"{prefix}total_amount_sold_num"] or 0))
-
-
-def _outreach(m):
-    """The outreach sheet's status and last action: "Outreach Sent, 2026-10-20". Empty when
-    the manager is not in the sheet; "in the sheet" when its row has neither."""
-    if not m.get("outreach_in_sheet"):
-        return ""
-    shown = [p for p in (m.get("outreach_status"), m.get("outreach_last_action")) if p]
-    return ", ".join(shown) or "in the sheet"
 
 
 def _address(f):
