@@ -342,3 +342,35 @@ Steps:
 Constraints: no network anywhere; your session never runs `derive` or `ingest` (question 25); `derive` still touches only derived tables and `ingest_log`; every threshold a module constant; docs through the `docs-writing` skill, brief; plain prose, no em dashes; `.env` never printed or committed. Commit footer: `Co-Authored-By:` the model running the session.
 
 Exit criteria: `pytest` green with no network; the commits in order and pushed; the `offering` filter splits the 780 into open and lapsed at the planning counts, within a few rows for the day's filings; each preset renders and marks itself; PROGRESS.md updated. The user seeing the open and lapsed split and the presets on the Emerging page is the acceptance gate.
+
+## Session 13. Derive speed for manager stats (WP8)
+
+Do not start until WP5b is accepted (it is, 2026-11-02). Read PLAN.md (9 WP8), PROGRESS.md (the 2026-11-02 decisions, question 29, the Session 11 and 12 entries for the timings), and `derive.py` (`build_funds`, `build_manager_stats`, `_people`, `_prior_firms`, `run`), `db/schema.sql` (`fund`, `manager`), `db/repo.py` (`ADDED_COLUMNS`, `funds_for_launches`), `cli.py` and `web/jobs.py` as they stand. This session makes the manager stats step of `derive` read what it needs from `fund` instead of looking up every fund's latest offering, filing and issuer row by accession, and reads the people of the latest filings once instead of twice. Nothing a page or workbook shows changes; the manager table must come out the same.
+
+What the planning session measured on 2026-11-02 from a read-only connection on the real database, with derive's mmap and cache settings:
+
+| Read | As written | Rewritten |
+| --- | --- | --- |
+| Grouped stats over fund, offering and filing by latest accession | 52.9 s cold | 1.7 s over `fund` alone |
+| Individuals on the latest filings (1,004,580 rows) | 56.9 s cold, 5.2 s warm, read twice | once, 2.9 s into a temp table plus 0.7 s to index it |
+| `big_names` second branch (the planner scans all 3,005,667 related persons) | 11.4 s | 2.8 s from the 1,391 managers with 10 or more funds (353,185 rows), join order forced with `CROSS JOIN` |
+| `manager_names` second branch | 9.4 s | 4.8 s from the temp table |
+| Prior-firm join | 2.3 s | unchanged |
+
+Session 12's hand run put `build_manager_stats` at 107.4 s; the reads above are about 80 s of it, the three `UPDATE` passes over 302,007 managers the rest. Timings move with the file cache (Session 11 saw 400 s for the same step), so compare steps against each other within one run.
+
+Settled decisions (in the decisions log):
+
+- `fund` carries its latest filing's offering figures and city. `build_funds` already joins the latest offering, filing and issuer rows for classification, so the columns cost it nothing. They go at the end of the table and in `repo.ADDED_COLUMNS`, in the same order, so the user's database gains them on the next connect and the positional insert still lines up.
+- The individuals on the latest filings are read once into a temp table that the people and prior-firm passes share; the prior-firm scan starts from the large managers with the join order forced.
+- The step splits into three named steps so the existing timing mechanism shows where the time goes. Nothing written changes.
+
+Steps:
+
+1. `fund` gains `latest_sold`, `latest_investors`, `latest_is_indefinite`, `latest_remaining`, `latest_is_amendment` and `city` (the primary issuer's city on the latest filing), filled by `build_funds` from `o`, `l` and `i`; the first-filing columns keep their names and meaning. `build_manager_stats` becomes a grouped scan of `fund_manager` joined to `fund`, with city, state and country from the anchor fund's row and no join to `offering`, `filing` or `issuer`. `repo.ADDED_COLUMNS` lists the six. Tests on the fixture database: a fund whose latest filing is an amendment with different figures has `latest_sold` from the latest filing and `total_amount_sold_num` from the first; `latest_is_amendment` is 1 for it and 0 for a single filing; the Session 6 and Session 12 manager stats tests pass unchanged; a database created with the old `fund` columns gains the new ones on connect and `derive` fills them. Commit.
+2. `_people` and `_prior_firms` read from a temp table `latest_person` (manager_id, cik, first_filing_date, latest_accession, latest_filing_date, seq, first, middle, last, name_norm, relationships; individuals only) built once and indexed on (manager_id, first_filing_date, cik, seq); `big_names` starts from `manager WHERE n_funds >= PRIOR_FIRM_FUNDS` with `CROSS JOIN` to `fund_manager`, `filing` (through `filing_cik`) and `related_person`; the temp tables are dropped at the end. `run` calls `build_manager_stats`, `build_manager_people` and `build_manager_prior_firms` as three steps, rows the manager count for each. `cli.py` and `web/jobs.py` need no change beyond the tests that list the step names. Tests: the people and prior-firm JSON equal what the current code writes on the fixture database (capture before changing); the timing dict names the three steps in order; `run` twice gives identical tables. Commit.
+3. Hand run is the user's from their own terminal (question 25). Before asking, from a read-only connection, save to your scratchpad a hash of every `manager` column except `offering_status`, ordered by manager_id, and the top 20 of the Emerging default window with scores. Ask for `venv\Scripts\python -m fundtracker derive` and the pasted output. After it, hash again and compare; any difference is a bug in step 1 or 2, so find it before writing the entry. Record in the Session 13 entry: each step's timing against Session 12's; the three new steps' total against 107.4 s; the hash result; the Emerging default counts and Remaining count against Session 12's 779, 666, 113 and 77 (allow the day's filings); the next largest steps (`build_link_keys` 70.0 s and `build_launches` 32.6 s in Session 12). Close question 29 if the three steps together are under half of 107.4 s, else record what remains. Append the entry, commit and push.
+
+Constraints: no network anywhere; your session never runs `derive` or `ingest` (question 25; read-only hashing is fine); `derive` still touches only derived tables and `ingest_log`, and the temp tables live in `temp`; every threshold a module constant; docs through the `docs-writing` skill, brief; plain prose, no em dashes; `.env` never printed or committed. Commit footer: `Co-Authored-By:` the model running the session.
+
+Exit criteria: `pytest` green with no network; three commits in order and pushed; the manager hash equal before and after; the three steps together under half of Session 12's 107.4 s in the hand run; the Emerging page unchanged; PROGRESS.md updated. The user seeing the timing lines and an unchanged Emerging page is the acceptance gate.
