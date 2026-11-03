@@ -466,10 +466,9 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
         chunk = ids[start:start + 500]
         for r in conn.execute(
                 f"""
-                SELECT f.*, fm.manager_id, lo.total_amount_sold_num AS latest_total_amount_sold,
-                       lo.n_investors AS latest_n_investors
+                SELECT f.*, fm.manager_id, f.latest_sold AS latest_total_amount_sold,
+                       f.latest_investors AS latest_n_investors
                 FROM fund_manager fm JOIN fund f USING (cik)
-                LEFT JOIN offering lo ON lo.accession = f.latest_accession
                 WHERE fm.manager_id IN ({', '.join('?' * len(chunk))})
                 ORDER BY f.first_filing_date, f.cik
                 """, chunk):

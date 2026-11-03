@@ -1,6 +1,7 @@
 import dataclasses
 import json
 import re
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -140,6 +141,33 @@ def test_fund_carries_the_latest_filings_figures_beside_the_first(empty):
     assert amended["latest_city"] == "Boston"
     assert single["latest_is_amendment"] == 0
     assert single["latest_city"] == base.issuers[0].city
+
+
+def test_fund_columns_name_every_fund_column(conn):
+    assert set(derive.FUND_COLUMNS) == {r[1] for r in conn.execute("PRAGMA table_info(fund)")}
+
+
+def test_manager_funds_carry_the_amendments_figures(empty):
+    base = fixture("0002158817-26-000001")
+    for f in amended_pair(base):
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    [fund] = [f for m in repo.managers_first_seen(empty, date(2000, 1, 1), date(2100, 1, 1), max_funds=None)
+              for f in m["funds"] if f["cik"] == "7000000001"]
+    assert (fund["latest_total_amount_sold"], fund["latest_n_investors"]) == (5_000_000, 7)
+
+
+def test_prior_firms_alone_rebuilds_the_latest_people(empty):
+    for f in people_scenario():
+        repo.upsert_filing(empty, f)
+    derive.run(empty)
+    expected = manager_people(empty)
+    derive.build_manager_people(empty)
+    empty.execute("UPDATE manager SET prior_firms = NULL")
+    empty.execute("DELETE FROM temp.latest_person")  # stale: as if the data changed since
+    derive.build_manager_prior_firms(empty)
+    assert manager_people(empty) == expected
+    assert empty.execute("SELECT 1 FROM temp.sqlite_master WHERE name = 'latest_person'").fetchone() is None
 
 
 def test_an_old_fund_table_gains_the_latest_columns_and_derive_fills_them(tmp_path):

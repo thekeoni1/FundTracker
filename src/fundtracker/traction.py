@@ -84,7 +84,8 @@ def age_months(first_seen, today):
 def score_manager(facts):
     """(score 0 to 100, reasons) for one manager.
 
-    facts is a manager row (derive.build_manager_stats columns) plus:
+    facts is a manager row (the columns derive.build_manager_stats, build_manager_people
+    and build_manager_prior_firms fill) plus:
       today   the date the window is measured from
       type    "hedge" or "all"; the hedge label is only given in all mode
     reasons is a list of {"code", "points", "detail"} in the order applied.

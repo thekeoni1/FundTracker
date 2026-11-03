@@ -68,6 +68,18 @@ KEY_CAPS = {"entity_stem": ENTITY_KEY_CAP, "entity_tokens": ENTITY_KEY_CAP,
 CLUSTER_KINDS = ("entity_stem", "entity_tokens")
 
 
+# The fund columns in the order build_funds yields them.
+FUND_COLUMNS = (
+    "cik", "name", "family_stem", "fund_type", "industry_group", "first_filing_date",
+    "first_accession", "latest_filing_date", "latest_accession", "n_filings", "exemptions",
+    "state", "country", "is_hedge_candidate", "candidate_reason", "sale_yet_to_occur",
+    "total_amount_sold_num", "n_investors", "min_investment_num", "total_offering_amount_num",
+    "total_offering_amount_is_indefinite", "year_of_inc_choice", "year_of_inc_value",
+    "latest_sold", "latest_investors", "latest_is_indefinite", "latest_remaining",
+    "latest_is_amendment", "latest_city",
+)
+
+
 def build_funds(conn):
     """One fund row per filer CIK; return the number written.
 
@@ -127,7 +139,8 @@ def build_funds(conn):
             )
 
     # Streamed: a list of every fund row held about 300 MB on the real data.
-    return conn.executemany(f"INSERT INTO fund VALUES ({', '.join('?' * 29)})", fund_rows()).rowcount
+    return conn.executemany(f"INSERT INTO fund ({', '.join(FUND_COLUMNS)}) "
+                            f"VALUES ({', '.join('?' * len(FUND_COLUMNS))})", fund_rows()).rowcount
 
 
 def _usable(key):
@@ -515,10 +528,11 @@ def build_manager_people(conn):
     conn.executemany("UPDATE manager SET people = ? WHERE manager_id = ?", _people(conn))
 
 
-def build_manager_prior_firms(conn):
-    """Fill manager.prior_firms. Run after build_manager_people, whose temp.latest_person
-    it reads (building it if absent) and then drops."""
-    if conn.execute("SELECT 1 FROM temp.sqlite_master WHERE name = 'latest_person'").fetchone() is None:
+def build_manager_prior_firms(conn, reuse_latest_person=False):
+    """Fill manager.prior_firms, then drop temp.latest_person. run passes
+    reuse_latest_person=True to read the table build_manager_people just left;
+    otherwise it is rebuilt here, so a stale one is never read."""
+    if not reuse_latest_person:
         _latest_people(conn)
     conn.executemany("UPDATE manager SET prior_firms = ? WHERE manager_id = ?", _prior_firms(conn))
     conn.execute("DROP TABLE temp.latest_person")
@@ -1109,7 +1123,7 @@ def run(conn, today=None):
         counts["manager"] = step("build_managers", build_managers, conn)
         step("build_manager_stats", build_manager_stats, conn, today, rows=lambda _r: counts["manager"])
         step("build_manager_people", build_manager_people, conn, rows=lambda _r: counts["manager"])
-        step("build_manager_prior_firms", build_manager_prior_firms, conn,
+        step("build_manager_prior_firms", build_manager_prior_firms, conn, True,
              rows=lambda _r: counts["manager"])
         counts["manager_adviser"] = step("build_manager_advisers", build_manager_advisers, conn,
                                          rows=lambda tiers: sum(tiers.values()))
