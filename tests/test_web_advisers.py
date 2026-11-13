@@ -1,6 +1,7 @@
 """Form ADV adviser fields on the Emerging page, its export and the manager page."""
 
 import io
+from datetime import date
 import re
 import sys
 from pathlib import Path
@@ -144,3 +145,61 @@ def test_adviser_label_scores_zero():
                                              "adviser_confidence": "medium", "employees": 3})
     adviser = next(r for r in reasons if r["code"] == "adviser")
     assert adviser == {"code": "adviser", "points": 0, "detail": "RIA, medium confidence, 3 employees"}
+
+
+@pytest.fixture
+def shared(enriched):
+    """Malt moved onto Heron's adviser, so the two share CRD 990001; Teal keeps its own.
+    Malt's headcount is raised so the 1-5 employee band drops it."""
+    conn = repo.connect(enriched)
+    with conn:
+        conn.execute("UPDATE manager SET adviser_crd = '990001', adviser_kind = 'ria', "
+                     "adviser_confidence = 'high', employees = 10, raum = 50000000 "
+                     "WHERE manager_id = ?", (MALT,))
+    conn.close()
+    return enriched
+
+
+def siblings(path, **filters):
+    conn = repo.connect_readonly(path)
+    rows = repo.managers_first_seen(conn, date(2000, 1, 1), date(2100, 1, 1), **filters)
+    conn.close()
+    return {m["manager_id"]: m["adviser_siblings"] for m in rows}
+
+
+def test_managers_sharing_an_adviser_are_counted_per_list(shared):
+    every = siblings(shared)
+    assert every[HERON] == every[MALT] == 2 and every[TEAL] == 0
+    assert all(n == 0 for k, n in every.items() if k not in (HERON, MALT))
+    # The 1-5 band drops Malt, so Heron is alone on that list.
+    assert siblings(shared, employees="1-5")[HERON] == 0
+    conn = repo.connect_readonly(shared)
+    rows = traction.score_managers(repo.managers_first_seen(conn, date(2000, 1, 1), date(2100, 1, 1)),
+                                   TODAY, "all")
+    conn.close()
+    labelled = {m["manager_id"] for m in rows if '"shared_adviser"' in m["reasons"]}
+    assert labelled == {HERON, MALT}
+
+
+def test_shared_adviser_on_the_page_and_in_the_export(shared):
+    from openpyxl import load_workbook
+
+    client = create_app(connect=lambda: repo.connect_readonly(shared), today=lambda: TODAY).test_client()
+    html = client.get("/emerging?type=all").get_data(as_text=True)
+    assert html.count(">RIA, high</a>, shared by 2") == 2
+    assert "same adviser as another manager on this list" in html
+    ws = load_workbook(io.BytesIO(client.get("/emerging/export.xlsx?type=all").data))["Managers"]
+    header = [c.value for c in ws[1]]
+    assert header[header.index("RAUM") + 1] == "Same adviser"
+    col, ids = header.index("Same adviser"), header.index("Manager ID")
+    values = {row[ids].value: row[col].value for row in ws.iter_rows(min_row=2)}
+    assert values[HERON] == values[MALT] == 2 and values[TEAL] is None
+
+
+def test_digest_tracked_set_carries_the_count(shared):
+    from fundtracker import digest
+
+    conn = repo.connect_readonly(shared)
+    tracked = digest.tracked_managers(conn, TODAY)
+    conn.close()
+    assert tracked and all("adviser_siblings" in m for m in tracked)

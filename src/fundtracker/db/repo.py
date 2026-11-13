@@ -429,7 +429,10 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     employees a key of EMPLOYEE_BANDS; offering "open", "lapsed" or "any". Each
     row is a dict of manager columns with
     "funds": its fund rows, oldest first, each with latest_total_amount_sold
-    and latest_n_investors from its latest filing.
+    and latest_n_investors from its latest filing, and adviser_siblings: how
+    many of the returned rows link to its adviser CRD when that is
+    traction.SHARED_ADVISER_MIN or more,
+    else 0. The count is per list, so it changes with the filters.
     """
     where = ["m.first_seen_date >= ?", "m.first_seen_date <= ?"]
     params = [oldest.isoformat(), newest.isoformat()]
@@ -459,7 +462,16 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     where.append(f"EXISTS (SELECT 1 FROM fund_manager fm JOIN fund f USING (cik) "
                  f"WHERE fm.manager_id = m.manager_id AND {pooled})")
     managers = [dict(r, funds=[]) for r in conn.execute(
-        f"SELECT m.* FROM manager m WHERE {' AND '.join(where)} ORDER BY m.manager_id", params)]
+        f"""
+        SELECT m.*, CASE WHEN m.adviser_crd IS NULL THEN 0
+                         ELSE count(*) OVER (PARTITION BY m.adviser_crd) END AS adviser_siblings
+        FROM manager m WHERE {' AND '.join(where)} ORDER BY m.manager_id
+        """, params)]
+    from fundtracker.traction import SHARED_ADVISER_MIN
+
+    for m in managers:
+        if m["adviser_siblings"] < SHARED_ADVISER_MIN:
+            m["adviser_siblings"] = 0
     by_id = {m["manager_id"]: m for m in managers}
     ids = list(by_id)
     for start in range(0, len(ids), 500):

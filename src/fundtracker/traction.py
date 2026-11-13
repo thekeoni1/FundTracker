@@ -26,6 +26,7 @@ TRACTION_WEIGHTS = {
     "large_team": -15,        # the linked adviser reports more than LARGE_TEAM_MAX employees
     "large_raum": -15,        # the linked adviser reports RAUM above LARGE_RAUM_MAX
     "mid_raum": 0,            # label: the linked adviser's RAUM is MID_RAUM_MIN up to LARGE_RAUM_MAX
+    "shared_adviser": 0,      # label: SHARED_ADVISER_MIN or more managers on this list share the adviser
     "nothing_raised": -20,    # every fund still reports nothing sold and no investors
 }
 TRACTION_LABELS = {
@@ -44,6 +45,7 @@ TRACTION_LABELS = {
     "large_team": "large adviser team",
     "large_raum": "large adviser assets",
     "mid_raum": "adviser assets of 500m or more",
+    "shared_adviser": "same adviser as another manager on this list",
     "nothing_raised": "nothing raised yet",
 }
 # Amount raised in bands: (from, up to, points), from inclusive, up to exclusive,
@@ -65,6 +67,9 @@ LARGE_TEAM_MAX = 100
 # leverage, so the penalty starts well above the raised bands' 500m. ERAs report no RAUM.
 LARGE_RAUM_MAX = 2_000_000_000
 MID_RAUM_MIN = 500_000_000
+# repo.managers_first_seen counts, per list, the rows linked to one adviser CRD; a group
+# this size or larger is usually side funds of one firm.
+SHARED_ADVISER_MIN = 2
 RECENT_MONTHS = 6
 LARGE_FUNDS = 10
 HEDGE_FUND = "Hedge Fund"
@@ -148,6 +153,9 @@ def score_manager(facts):
             add("large_raum", f"{raum:,}")
         elif raum is not None and raum >= MID_RAUM_MIN:
             add("mid_raum", f"{raum:,}")
+        siblings = facts.get("adviser_siblings") or 0
+        if siblings >= SHARED_ADVISER_MIN:
+            add("shared_adviser", f"{siblings} managers on this list share the adviser")
     if facts.get("offering_status") == "lapsed":
         add("lapsed", f"latest filing {latest}" if latest else "no open offering")
     if n_funds >= LARGE_FUNDS:

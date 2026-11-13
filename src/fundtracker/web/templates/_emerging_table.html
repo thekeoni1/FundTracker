@@ -26,7 +26,7 @@
       <td class="small">{{ m | people_short }}</td>
       <td class="small">{{ m | prior_firms }}</td>
       <td class="small">{% if m.website %}<a href="{{ links.website(m.website) }}" target="_blank" rel="noopener">{{ m.website | lower | replace("https://", "") | replace("http://", "") }}</a>{% endif %}</td>
-      <td class="nowrap">{% if m.adviser_crd %}<a href="{{ links.iapd_firm(m.adviser_crd) }}" target="_blank" rel="noopener">{{ m | adviser_label }}</a>{% endif %}</td>
+      <td class="nowrap">{% if m.adviser_crd %}<a href="{{ links.iapd_firm(m.adviser_crd) }}" target="_blank" rel="noopener">{{ m | adviser_label }}</a>{% if m.adviser_siblings %}, shared by {{ m.adviser_siblings }}{% endif %}{% endif %}</td>
       <td class="num">{{ m.employees | amount }}</td>
       <td class="num">{{ m.raum | amount }}</td>
       <td class="num">{{ m.adv_hedge_funds | amount }}</td>
