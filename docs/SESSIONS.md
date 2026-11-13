@@ -374,3 +374,35 @@ Steps:
 Constraints: no network anywhere; your session never runs `derive` or `ingest` (question 25; read-only hashing is fine); `derive` still touches only derived tables and `ingest_log`, and the temp tables live in `temp`; every threshold a module constant; docs through the `docs-writing` skill, brief; plain prose, no em dashes; `.env` never printed or committed. Commit footer: `Co-Authored-By:` the model running the session.
 
 Exit criteria: `pytest` green with no network; three commits in order and pushed; the manager hash equal before and after; the three steps together under half of Session 12's 107.4 s in the hand run; the Emerging page unchanged; PROGRESS.md updated. The user seeing the timing lines and an unchanged Emerging page is the acceptance gate.
+
+## Session 14. Adviser size penalty and shared-adviser label (WP9)
+
+Do not start until WP8 is accepted (it is, 2026-11-02). Read PLAN.md (7.6, 9 WP9), PROGRESS.md (the 2026-11-13 decisions, questions 27 and 31), and `traction.py`, `db/repo.py` (`managers_first_seen`), `export.py` (the Managers sheet columns and the About rows), `web/templates/_emerging_table.html` and `tests/test_traction.py` as they stand. This session adds two things to the Emerging ranking: a penalty when the linked adviser manages billions, and a label when several managers on the list share one adviser. No derive change, no schema change, no hand run.
+
+What the planning session measured on 2026-11-13 from a read-only connection on the real database, 794 emerging hedge managers in the default window (first seen 2025-05-13 to 2026-05-13):
+
+| Measure | Value |
+| --- | --- |
+| Managers in the top 20, 50, 100 under an adviser with RAUM of 2bn or more | 2, 6, 13 |
+| Managers in the top 50 under an adviser with RAUM of 500m to 2bn | 4 |
+| Two Seas Capital (CRD 310191, 16 employees, RAUM 2,821,372,428) | 7 managers in the window, 3 in the hedge list scoring 80, 55 and 50, three of the seven named after the same signer |
+| Advisers shared by 2 or more hedge managers in the window | 17, covering 37 managers |
+| Window managers (all types) with a link, by adviser RAUM | 853 none, 385 2bn+, 191 500m to 2bn, 179 100m to 500m, 26 under 100m |
+
+Expected after the change, from the same measurement: Occudo, Meridiem and Cordoba go from 90 to 75, Stenham from 85 to 70, the Two Seas signer row and SteelPeak from 80 to 65; NISA (417 employees, RAUM 343bn) carries both `large_team` and `large_raum`.
+
+Settled decisions (in the decisions log):
+
+- `large_raum` subtracts 15 when the linked adviser reports RAUM above `LARGE_RAUM_MAX` = 2,000,000,000; `mid_raum` is a zero-point label from `MID_RAUM_MIN` = 500,000,000 up to that. Both stack with `large_team`, and a missing RAUM (every ERA) scores nothing. RAUM counts gross assets with leverage, so the penalty starts at 2bn, not at the 500m where the raised bands turn negative.
+- `shared_adviser` is a zero-point label computed per list: `managers_first_seen` counts, among the rows it returns, how many link to each adviser CRD, and the scorer labels every manager in a group of 2 or more. Nothing is stored; the count the user wants is about the list in front of them, and the digest's tracked set gets it through the same query.
+- Sub-funds with no adviser evidence on the Form D (Clemenceau, question 31 c) are not addressed here.
+
+Steps:
+
+1. `traction.py`: `LARGE_RAUM_MAX`, `MID_RAUM_MIN`, the two weights and labels, the reasons added right after `large_team` inside the `if kind:` block with the RAUM as detail, `large_raum` in `PHRASE_WITH_DETAIL` so the tooltip reads "large adviser assets, 2,821,372,428 (-15)". `export.py`: two About rows after the employees row. Tests: a manager at exactly the threshold scores nothing; one above loses 15 and names the value; one between carries the label and no points; one with 500 employees and 10bn carries both penalties; a manager with `adviser_kind` set and `raum` None is unchanged from today. Commit.
+2. `repo.managers_first_seen`: the manager query gains `adviser_siblings`, the count of returned rows sharing `m.adviser_crd` (a window function over the filtered rows, 0 when the CRD is null); the docstring says it is per list. `traction.score_manager`: a zero-point `shared_adviser` label when `adviser_siblings` is 2 or more, detail "3 managers on this list share the adviser". `_emerging_table.html`: the adviser cell shows "shared by 3" after the kind when the count is 2 or more. `export.py`: a "Same adviser" column after RAUM in the Managers sheet, the count when 2 or more, else blank. Tests on the fixture database: two managers linked to one CRD both get 2 and the label, a third linked elsewhere gets 0 and no label, and the count changes when a filter removes one of the pair; the digest's tracked set still loads. Commit.
+3. From a read-only connection on the real database, score the default hedge window before (checkout of `cc70822` or the saved scores) and after. Record in the Session 14 entry: the count of managers carrying `large_raum`, `mid_raum` and `shared_adviser`; every manager whose score changed, with old and new; the Two Seas rows; the total count against 794. Any manager without an adviser link whose score moved is a bug. Append the entry, update question 31 (close part a), commit and push. Then tell the user to start `serve --no-refresh` and look at the Emerging page; the user seeing the page is the acceptance gate.
+
+Constraints: no network anywhere; your session never runs `derive`, `ingest`, `refresh` or `backfill` (question 25; read-only scoring against the real database is fine, through `repo.connect_readonly`); every threshold a module constant; docs through the `docs-writing` skill, brief; plain prose, no em dashes; `.env` never printed or committed. Commit footer: `Co-Authored-By:` the model running the session.
+
+Exit criteria: `pytest` green with no network; three commits in order and pushed; the expected score moves above and no others; the Emerging default count unchanged; PROGRESS.md updated; the user has seen the page.
