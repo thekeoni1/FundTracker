@@ -23,6 +23,7 @@ from fundtracker.model import (
     RelatedPerson,
     Signature,
 )
+from fundtracker.traction import SHARED_ADVISER_MIN
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -467,8 +468,6 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
                          ELSE count(*) OVER (PARTITION BY m.adviser_crd) END AS adviser_siblings
         FROM manager m WHERE {' AND '.join(where)} ORDER BY m.manager_id
         """, params)]
-    from fundtracker.traction import SHARED_ADVISER_MIN
-
     for m in managers:
         if m["adviser_siblings"] < SHARED_ADVISER_MIN:
             m["adviser_siblings"] = 0
