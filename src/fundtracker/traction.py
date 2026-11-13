@@ -24,6 +24,8 @@ TRACTION_WEIGHTS = {
     "lapsed": 0,              # label: offering_status lapsed, no open offering filed in 13 months
     "large": -20,             # LARGE_FUNDS or more funds
     "large_team": -15,        # the linked adviser reports more than LARGE_TEAM_MAX employees
+    "large_raum": -15,        # the linked adviser reports RAUM above LARGE_RAUM_MAX
+    "mid_raum": 0,            # label: the linked adviser's RAUM is MID_RAUM_MIN up to LARGE_RAUM_MAX
     "nothing_raised": -20,    # every fund still reports nothing sold and no investors
 }
 TRACTION_LABELS = {
@@ -40,6 +42,8 @@ TRACTION_LABELS = {
     "lapsed": "no filing in 13 months",
     "large": "many funds already",
     "large_team": "large adviser team",
+    "large_raum": "large adviser assets",
+    "mid_raum": "adviser assets of 500m or more",
     "nothing_raised": "nothing raised yet",
 }
 # Amount raised in bands: (from, up to, points), from inclusive, up to exclusive,
@@ -56,6 +60,11 @@ MANY_INVESTORS = 10
 # A linked adviser with more employees than this is a large firm, not a small shop.
 # Exempt reporting advisers report no headcount, so a missing figure scores nothing.
 LARGE_TEAM_MAX = 100
+# A linked adviser with regulatory AUM above LARGE_RAUM_MAX is a large firm whatever its
+# headcount; from MID_RAUM_MIN up to it, a label only. RAUM counts gross assets with
+# leverage, so the penalty starts well above the raised bands' 500m. ERAs report no RAUM.
+LARGE_RAUM_MAX = 2_000_000_000
+MID_RAUM_MIN = 500_000_000
 RECENT_MONTHS = 6
 LARGE_FUNDS = 10
 HEDGE_FUND = "Hedge Fund"
@@ -134,6 +143,11 @@ def score_manager(facts):
         add("adviser", detail)
         if (facts.get("employees") or 0) > LARGE_TEAM_MAX:
             add("large_team", f"{facts['employees']:,} employees")
+        raum = facts.get("raum")
+        if raum is not None and raum > LARGE_RAUM_MAX:
+            add("large_raum", f"{raum:,}")
+        elif raum is not None and raum >= MID_RAUM_MIN:
+            add("mid_raum", f"{raum:,}")
     if facts.get("offering_status") == "lapsed":
         add("lapsed", f"latest filing {latest}" if latest else "no open offering")
     if n_funds >= LARGE_FUNDS:
@@ -172,7 +186,7 @@ def _band_text(low, high):
 
 
 # Reasons whose phrase names their detail: "large adviser team, 417 employees (-15)".
-PHRASE_WITH_DETAIL = frozenset({"large_team"})
+PHRASE_WITH_DETAIL = frozenset({"large_team", "large_raum"})
 
 
 def reason_phrase(reason):

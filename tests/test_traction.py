@@ -135,3 +135,29 @@ def test_large_team_phrase_names_the_headcount():
     _score, reasons = score_manager(facts(**ADVISER, employees=2434))
     (reason,) = [r for r in reasons if r["code"] == "large_team"]
     assert reason_phrase(reason) == "large adviser team, 2,434 employees (-15)"
+
+
+@pytest.mark.parametrize("changes, code, points", [
+    (dict(ADVISER, raum=2_000_000_000), "mid_raum", 0),  # exactly the threshold: no penalty
+    (dict(ADVISER, raum=2_000_000_001), "large_raum", -15),
+    (dict(ADVISER, raum=500_000_000), "mid_raum", 0),
+    (dict(ADVISER, raum=499_999_999), None, 0),
+    (dict(ADVISER, raum=None), None, 0),  # unchanged from before WP9
+    ({"adviser_kind": "era", "adviser_confidence": "high", "raum": None}, None, 0),
+    ({"raum": 9_000_000_000}, None, 0),  # no linked adviser
+])
+def test_raum_penalty_and_label(changes, code, points):
+    score, reasons = score_manager(facts(**changes))
+    found = [r for r in reasons if r["code"] in ("large_raum", "mid_raum")]
+    assert [r["code"] for r in found] == ([code] if code else [])
+    assert score == 25 + points
+
+
+def test_large_raum_names_the_value_and_stacks_with_large_team():
+    score, reasons = score_manager(facts(**ADVISER, employees=500, raum=10_000_000_000))
+    assert codes(reasons)[-2:] == ["large_team", "large_raum"]
+    assert score == 0  # 25 - 15 - 15, floored
+    (reason,) = [r for r in reasons if r["code"] == "large_raum"]
+    assert reason_phrase(reason) == "large adviser assets, 10,000,000,000 (-15)"
+    _score, reasons = score_manager(facts(**ADVISER, total_sold=50_000_000, raum=2_821_372_428))
+    assert "large adviser assets, 2,821,372,428 (-15)" in [reason_phrase(r) for r in reasons]

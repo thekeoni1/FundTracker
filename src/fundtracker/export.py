@@ -226,6 +226,8 @@ def write_emerging_workbook(path, managers, funds, meta):
         ("Offering open if a fund filed within, whole months", derive.OPEN_MAX_AGE_MONTHS),
         ("Funds that count as large", traction.LARGE_FUNDS),
         ("Adviser employees above which the team counts as large", traction.LARGE_TEAM_MAX),
+        ("Adviser RAUM above which the firm counts as large", traction.LARGE_RAUM_MAX),
+        ("Adviser RAUM from which it is labelled", traction.MID_RAUM_MIN),
     ], traction.TRACTION_WEIGHTS, traction.TRACTION_LABELS)
     wb.save(path)
 
