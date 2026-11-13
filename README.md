@@ -7,7 +7,8 @@ FundTracker finds newly launched hedge funds and young hedge fund managers in th
 You need Python 3.12 or later and about 3 GB of disk. On Windows, from a terminal:
 
 ```
-git clone https://github.com/thekeoni1/FundTracker.git && cd FundTracker
+git clone https://github.com/thekeoni1/FundTracker.git
+cd FundTracker
 py -m venv venv
 venv\Scripts\pip install -r requirements.txt -e .
 copy .env.example .env
