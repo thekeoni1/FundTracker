@@ -434,6 +434,9 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     many of the returned rows link to its adviser CRD when that is
     traction.SHARED_ADVISER_MIN or more,
     else 0. The count is per list, so it changes with the filters.
+    adviser_first_seen is the earliest first_seen_date of any manager, on the
+    list or not, linked to the same adviser CRD, when that is earlier than the
+    row's own; None when the row has no adviser link or is the adviser's first.
     """
     where = ["m.first_seen_date >= ?", "m.first_seen_date <= ?"]
     params = [oldest.isoformat(), newest.isoformat()]
@@ -465,8 +468,12 @@ def managers_first_seen(conn, oldest, newest, fund_types=None, exclude_over_cap=
     managers = [dict(r, funds=[]) for r in conn.execute(
         f"""
         SELECT m.*, CASE WHEN m.adviser_crd IS NULL THEN 0
-                         ELSE count(*) OVER (PARTITION BY m.adviser_crd) END AS adviser_siblings
-        FROM manager m WHERE {' AND '.join(where)} ORDER BY m.manager_id
+                         ELSE count(*) OVER (PARTITION BY m.adviser_crd) END AS adviser_siblings,
+               CASE WHEN a.first_seen < m.first_seen_date THEN a.first_seen END AS adviser_first_seen
+        FROM manager m
+        LEFT JOIN (SELECT adviser_crd, min(first_seen_date) AS first_seen FROM manager
+                   WHERE adviser_crd IS NOT NULL GROUP BY adviser_crd) a USING (adviser_crd)
+        WHERE {' AND '.join(where)} ORDER BY m.manager_id
         """, params)]
     for m in managers:
         if m["adviser_siblings"] < SHARED_ADVISER_MIN:

@@ -27,6 +27,7 @@ TRACTION_WEIGHTS = {
     "large_raum": -15,        # the linked adviser reports RAUM above LARGE_RAUM_MAX
     "mid_raum": 0,            # label: the linked adviser's RAUM is MID_RAUM_MIN up to LARGE_RAUM_MAX
     "shared_adviser": 0,      # label: SHARED_ADVISER_MIN or more managers on this list share the adviser
+    "adviser_since": 0,       # label: a manager under the same adviser CRD was first seen earlier
     "nothing_raised": -20,    # every fund still reports nothing sold and no investors
 }
 TRACTION_LABELS = {
@@ -46,6 +47,7 @@ TRACTION_LABELS = {
     "large_raum": "large adviser assets",
     "mid_raum": "adviser assets of 500m or more",
     "shared_adviser": "same adviser as another manager on this list",
+    "adviser_since": "adviser filed before this manager",
     "nothing_raised": "nothing raised yet",
 }
 # Amount raised in bands: (from, up to, points), from inclusive, up to exclusive,
@@ -156,6 +158,8 @@ def score_manager(facts):
         siblings = facts.get("adviser_siblings") or 0
         if siblings >= SHARED_ADVISER_MIN:
             add("shared_adviser", f"{siblings} managers on this list share the adviser")
+        if facts.get("adviser_first_seen"):
+            add("adviser_since", facts["adviser_first_seen"])
     if facts.get("offering_status") == "lapsed":
         add("lapsed", f"latest filing {latest}" if latest else "no open offering")
     if n_funds >= LARGE_FUNDS:
@@ -194,7 +198,7 @@ def _band_text(low, high):
 
 
 # Reasons whose phrase names their detail: "large adviser team, 417 employees (-15)".
-PHRASE_WITH_DETAIL = frozenset({"large_team", "large_raum"})
+PHRASE_WITH_DETAIL = frozenset({"large_team", "large_raum", "adviser_since"})
 
 
 def reason_phrase(reason):

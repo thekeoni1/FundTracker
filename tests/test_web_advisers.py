@@ -1,6 +1,7 @@
 """Form ADV adviser fields on the Emerging page, its export and the manager page."""
 
 import io
+import json
 from datetime import date
 import re
 import sys
@@ -203,3 +204,53 @@ def test_digest_tracked_set_carries_the_count(shared):
     tracked = digest.tracked_managers(conn, TODAY)
     conn.close()
     assert tracked and all("adviser_siblings" in m for m in tracked)
+
+
+def first_seen_rows(path):
+    conn = repo.connect_readonly(path)
+    rows = repo.managers_first_seen(conn, date(2000, 1, 1), date(2100, 1, 1))
+    conn.close()
+    return {m["manager_id"]: m for m in rows}
+
+
+def test_adviser_since_marks_only_the_later_manager_under_one_crd(shared):
+    rows = first_seen_rows(shared)
+    heron, malt = rows[HERON], rows[MALT]
+    assert heron["first_seen_date"] != malt["first_seen_date"]
+    early, late = sorted((heron, malt), key=lambda m: m["first_seen_date"])
+    assert late["adviser_first_seen"] == early["first_seen_date"]
+    assert early["adviser_first_seen"] is None
+    assert rows[TEAL]["adviser_first_seen"] is None  # linked alone
+    unlinked = [m for m in rows.values() if m["adviser_crd"] is None]
+    assert unlinked and all(m["adviser_first_seen"] is None for m in unlinked)
+
+    scored = traction.score_managers(list(rows.values()), TODAY, "all")
+    labelled = {m["manager_id"]: r for m in scored for r in json.loads(m["reasons"])
+                if r["code"] == "adviser_since"}
+    assert set(labelled) == {late["manager_id"]}
+    reason = labelled[late["manager_id"]]
+    assert reason["points"] == 0 and reason["detail"] == early["first_seen_date"]
+    assert traction.reason_phrase(reason) == f"adviser filed before this manager, {early['first_seen_date']}"
+    # A label only: every score is what it was without the field (the WP9 score).
+    for m in scored:
+        before, _ = traction.score_manager(dict(m, adviser_first_seen=None, today=TODAY, type="all"))
+        assert m["score"] == before
+
+
+def test_adviser_since_on_the_page_and_in_the_export(shared):
+    from openpyxl import load_workbook
+
+    rows = first_seen_rows(shared)
+    late = max((rows[HERON], rows[MALT]), key=lambda m: m["first_seen_date"])
+    client = create_app(connect=lambda: repo.connect_readonly(shared), today=lambda: TODAY).test_client()
+    html = client.get("/emerging?type=all").get_data(as_text=True)
+    assert "<th>Adviser</th><th>Adviser since</th>" in html
+    assert f'<td class="nowrap">{late["adviser_first_seen"]}</td>' in html
+    assert f"adviser filed before this manager, {late['adviser_first_seen']}" in html
+    ws = load_workbook(io.BytesIO(client.get("/emerging/export.xlsx?type=all").data))["Managers"]
+    header = [c.value for c in ws[1]]
+    assert header[header.index("Same adviser") + 1] == "Adviser since"
+    col, ids = header.index("Adviser since"), header.index("Manager ID")
+    values = {row[ids].value: row[col].value for row in ws.iter_rows(min_row=2)}
+    assert values[late["manager_id"]].date() == date.fromisoformat(late["adviser_first_seen"])
+    assert sum(v is not None for v in values.values()) == 1
