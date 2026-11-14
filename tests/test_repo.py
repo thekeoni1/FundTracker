@@ -59,6 +59,27 @@ def test_connect_sets_wal_and_foreign_keys_and_is_idempotent(tmp_path):
     c.close()
 
 
+def manager_indexes(conn):
+    return {r["name"] for r in conn.execute("PRAGMA index_list(manager)")}
+
+
+def test_fresh_database_has_the_adviser_crd_index(tmp_path):
+    c = repo.connect(tmp_path / "x.db")
+    assert "manager_adviser_crd" in manager_indexes(c)
+    c.close()
+
+
+def test_connect_adds_the_adviser_crd_index_to_an_older_database(tmp_path):
+    path = tmp_path / "x.db"
+    c = repo.connect(path)
+    c.execute("DROP INDEX manager_adviser_crd")
+    c.commit()
+    c.close()
+    c = repo.connect(path)
+    assert "manager_adviser_crd" in manager_indexes(c)
+    c.close()
+
+
 def test_every_fixture_has_a_filing_date():
     assert len(fixture_dates()) == 12
 
