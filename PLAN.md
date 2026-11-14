@@ -381,7 +381,7 @@ Depends on: WP8 (accepted 2026-11-02). Question 31. Measured 2026-11-13 from a r
 
 Deliver: a `large_raum` penalty (-15 when the linked adviser's RAUM is above `LARGE_RAUM_MAX`, 2,000,000,000) and a zero-point `mid_raum` label from `MID_RAUM_MIN` (500,000,000), both stacking with `large_team` and silent on a missing value; a zero-point `shared_adviser` label when 2 or more managers on the same list link to one adviser, counted in `managers_first_seen` over the rows it returns, shown in the Emerging table's adviser cell and as a Managers sheet column; the About sheet rows for the two thresholds; the Session 14 entry with the default-window counts before and after.
 
-Done when: on the real data every Two Seas row carries `large_raum` and `shared_adviser`; the 2bn+ managers in the top 50 drop 15 points and nothing else moves; a manager with no adviser link scores as before; the Emerging default count is unchanged; the user has looked at the page; question 31 (a) closed.
+Done when: on the real data every Two Seas row carries `large_raum` and `shared_adviser`; the 2bn+ managers in the top 50 drop 15 points and nothing else moves; a manager with no adviser link scores as before; the Emerging default count is unchanged; the user has looked at the page; question 31 (a) closed. Built in Session 14 and accepted 2026-11-13 (commit 8d80a76): 794 managers before and after, 37 scores moved, every one under a 2bn+ adviser, and the user saw the shared-by notes and the large adviser assets tooltip on the Emerging page.
 
 Brief: "Implement WP9 from docs/SESSIONS.md Session 14."
 
