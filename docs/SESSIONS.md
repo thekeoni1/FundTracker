@@ -406,3 +406,30 @@ Steps:
 Constraints: no network anywhere; your session never runs `derive`, `ingest`, `refresh` or `backfill` (question 25; read-only scoring against the real database is fine, through `repo.connect_readonly`); every threshold a module constant; docs through the `docs-writing` skill, brief; plain prose, no em dashes; `.env` never printed or committed. Commit footer: `Co-Authored-By:` the model running the session.
 
 Exit criteria: `pytest` green with no network; three commits in order and pushed; the expected score moves above and no others; the Emerging default count unchanged; PROGRESS.md updated; the user has seen the page.
+
+## Session 15. Adviser-since label (WP10)
+
+Do not start until WP9 is accepted (it is, 2026-11-13). Read PLAN.md (7.6, 9 WP10), PROGRESS.md (the 2026-11-14 decisions, question 32), and `traction.py`, `db/repo.py` (`managers_first_seen`), `db/schema.sql`, `export.py`, `web/templates/_emerging_table.html` and the WP9 tests as they stand. This session adds one fact to each Emerging row: the earliest date any manager under the same adviser was first seen, when that is earlier than the row's own. It carries no points. Nothing else changes.
+
+What the planning session measured on 2026-11-14 from a read-only connection on the real database, 794 emerging hedge managers in the default window (first seen 2025-05-13 to 2026-05-13):
+
+| Measure | Value |
+| --- | --- |
+| Rows with an adviser link | 217 |
+| Rows whose adviser has an earlier manager | 103, of which 98 before the window |
+| In the top 20, 50, 100 | 3, 9, 21 |
+| Earliest dates by year | 2009: 15, 2010: 13, 2012: 10, 2018: 8, 2020: 7, the rest 6 or fewer |
+| Examples | MALT Partners (rank 2, 95) 2015-05-14; FirstWave (13, 90) 2012-01-09; AIMEE SPENCER (25, 80) 2018-08-09; Third Eye Global (26, 80) 2023-08-11 |
+| `SELECT adviser_crd, min(first_seen_date) FROM manager WHERE adviser_crd IS NOT NULL GROUP BY adviser_crd` | 9.3 s cold, 290 ms warm, 7,357 advisers over 302,793 rows; manager has no index on adviser_crd |
+
+Settled decisions (in the decisions log): a zero-point label and a date column, no penalty and no fold; an index on `manager(adviser_crd)` in `schema.sql`.
+
+Steps:
+
+1. `schema.sql`: `CREATE INDEX IF NOT EXISTS manager_adviser_crd ON manager(adviser_crd);` beside the other manager index. `repo.connect` runs the schema on every open, so an existing database gets the index on its next write connection; the server opens read-only. Test: a fresh database has the index (pragma index_list), and a database created without it gains it on `connect`. Commit. Then ask the user to run `venv\Scripts\python -m fundtracker stats` once from their own terminal, which builds the index on the real database, and wait for them to say it ran.
+2. `repo.managers_first_seen`: the query joins a grouped subquery of the earliest first-seen date per adviser CRD and returns `adviser_first_seen`, null when the row has no link or the earliest date is not earlier than the row's own `first_seen_date`; the docstring says what it means. `traction.score_manager`: inside the linked-adviser block, a zero-point `adviser_since` reason when `adviser_first_seen` is set, detail the date, in `PHRASE_WITH_DETAIL` so the tooltip reads "adviser filed before this manager, 2018-08-09". `_emerging_table.html`: an "Adviser since" column after Adviser showing the date. `export.py`: an "Adviser since" column after Same adviser, a date like First seen. Tests on the fixture database: two managers under one CRD, the later one carries the date and the label and the earlier one carries neither; an unlinked manager carries neither; a manager linked alone carries neither; every score equals the WP9 score. Commit.
+3. From a read-only connection on the real database, after the user has run `stats`: score the default hedge window and check every score against the saved WP9 scores (any change is a bug, the label is zero points); count the labelled rows against 103 and list the top 20 with their dates; time `managers_first_seen` for the default window cold and warm. Append the Session 15 entry, update question 32, commit and push. Then tell the user to restart `serve --no-refresh` and look at the Adviser since column; the user seeing the page is the acceptance gate.
+
+Constraints: no network anywhere; your session never runs `derive`, `ingest`, `refresh` or `backfill`, and the one `stats` run is the user's (question 25; read-only scoring through `repo.connect_readonly` is fine); docs through the `docs-writing` skill, brief; plain prose, no em dashes; `.env` never printed or committed. Commit footer: `Co-Authored-By:` the model running the session.
+
+Exit criteria: `pytest` green with no network; three commits in order and pushed; no score moved; 103 rows labelled; the query under a second cold with the index; PROGRESS.md updated; the user has seen the page.
