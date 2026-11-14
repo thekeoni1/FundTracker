@@ -391,7 +391,7 @@ Depends on: WP9 (accepted 2026-11-13). Question 32. Measured 2026-11-14 from a r
 
 Deliver: `adviser_first_seen` from `managers_first_seen`, the earliest first-seen date of any manager under the row's adviser CRD when that is earlier than the row's own, else null; a zero-point `adviser_since` reason naming the date; an "Adviser since" column in the Emerging table and the Managers sheet; the index in `schema.sql`, applied to the existing database by the user's next write connection; the Session 15 entry with the counts and the query timings. No penalty, no fold, no derive change.
 
-Done when: every score in the default window is unchanged; the 103 rows and no others carry the label; the Aimee Spencer rows read 2018-08-09 and MALT Partners reads 2015-05-14; the Emerging query with the index takes under a second cold; the user has looked at the page.
+Done when: every score in the default window is unchanged; the 103 rows and no others carry the label; the Aimee Spencer rows read 2018-08-09 and MALT Partners reads 2015-05-14; the Emerging query with the index takes under a second cold; the user has looked at the page. Built in Session 15 and accepted 2026-11-14 (commit 7e853ec): 794 managers, no score moved, 103 rows dated, and the user saw the Adviser since column on the Emerging page.
 
 Brief: "Implement WP10 from docs/SESSIONS.md Session 15."
 
